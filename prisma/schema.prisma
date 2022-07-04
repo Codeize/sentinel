@@ -26,3 +26,11 @@ model MessageOnlyChannel {
 
   @@map("message_only_channels")
 }
+
+model SharedGuildBan {
+  user_id  String  @id
+  guild_id String
+  reason   String?
+
+  @@map("shared_guild_bans")
+}
