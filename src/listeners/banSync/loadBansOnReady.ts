@@ -13,19 +13,21 @@ export class LoadBansOnReady extends Listener {
 
 		const banList = new Map<string, SharedGuildBan>();
 
+		this.container.logger.info('Fetching all bans for the provided guilds, this might take a while...');
+
 		// Fetch all bans from guilds
 		for (const guildId of guildIds) {
 			const guild = this.container.client.guilds.resolve(guildId);
 
 			if (!guild) {
-				this.container.logger.warn(`Couldn't find guild ${guildId} to sync bans with!`);
+				this.container.logger.warn(`  Couldn't find guild ${guildId} to sync bans with!`);
 				continue;
 			}
 
 			const me = await guild.members.fetch({ user: this.container.client.user!.id });
 			if (!me.permissions.has(PermissionFlagsBits.BanMembers)) {
 				this.container.logger.warn(
-					`Can't fetch bans from guild ${guild.name} (${guildId}) because I don't have the Ban Members permission!`,
+					`  Can't fetch bans from guild ${guild.name} (${guildId}) because I don't have the Ban Members permission!`,
 				);
 				continue;
 			}
@@ -60,7 +62,7 @@ export class LoadBansOnReady extends Listener {
 				}
 
 				if (banChunk.length < 1000) {
-					this.container.logger.info(`Fetched all bans for guild ${guild.name} (${guild.id})`);
+					this.container.logger.info(`  Fetched all bans for guild ${guild.name} (${guild.id})`);
 					break;
 				}
 			}
@@ -84,19 +86,22 @@ export class LoadBansOnReady extends Listener {
 			const guild = this.container.client.guilds.resolve(guildId);
 
 			if (!guild) {
-				this.container.logger.warn(`Couldn't find guild ${guildId} to sync bans with!`);
+				this.container.logger.warn(`  Couldn't find guild ${guildId} to sync bans with!`);
 				continue;
 			}
 
 			const me = await guild.members.fetch({ user: this.container.client.user!.id });
 			if (!me.permissions.has(PermissionFlagsBits.BanMembers)) {
 				this.container.logger.warn(
-					`Can't ensure bans are synced in guild ${guild.name} (${guildId}) because I don't have the Ban Members permission!`,
+					`  Can't ensure bans are synced in guild ${guild.name} (${guildId}) because I don't have the Ban Members permission!`,
 				);
 				continue;
 			}
 
 			// Fetch all guild members
+			this.container.logger.info(
+				`  Fetching all members of guild ${guild.name} (${guild.id}) - this might take a while...`,
+			);
 			const members = await guild.members.fetch();
 
 			for (const [id, member] of members) {
@@ -105,7 +110,7 @@ export class LoadBansOnReady extends Listener {
 				if (ban) {
 					if (!member.bannable) {
 						this.container.logger.warn(
-							`Couldn't ban user ${member.user.tag} (${member.user.id}) in guild ${guild.name} (${
+							`    Couldn't ban user ${member.user.tag} (${member.user.id}) in guild ${guild.name} (${
 								guild.id
 							}) because they are above me (previously banned for: ${ban.reason ?? 'no reason'})`,
 						);
@@ -116,7 +121,7 @@ export class LoadBansOnReady extends Listener {
 
 					// Member is present in guild but should be banned... bye felicia
 					this.container.logger.info(
-						`Banning user ${member.user.tag} (${id}) from guild ${guild.name} (${
+						`    Banning user ${member.user.tag} (${id}) from guild ${guild.name} (${
 							guild.id
 						}) because they were banned in ${bannedIn} (${ban.guild_id}) for: ${ban.reason ?? 'no reason'}`,
 					);

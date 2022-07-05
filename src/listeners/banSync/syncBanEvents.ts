@@ -1,8 +1,19 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { container, Events, Listener } from '@sapphire/framework';
-import { PermissionFlagsBits } from 'discord-api-types/v10';
-import type { GuildBan } from 'discord.js';
+import { Time } from '@sapphire/time-utilities';
+import { PermissionFlagsBits, RESTJSONErrorCodes } from 'discord-api-types/v10';
+import { DiscordAPIError, GuildBan } from 'discord.js';
 import { useGuildIdsToSyncBansIn } from '../../lib/utils/hooks/useGuildIdsToSyncBansIn.js';
+
+const recentlySeenBanEvents = new Map<string, { userId: string; at: number }>();
+
+setInterval(() => {
+	for (const [userId, { at }] of recentlySeenBanEvents) {
+		if (Date.now() - at > Time.Minute * 2) {
+			recentlySeenBanEvents.delete(userId);
+		}
+	}
+}).unref();
 
 @ApplyOptions<Listener.Options>({
 	event: Events.GuildBanAdd,
@@ -10,9 +21,22 @@ import { useGuildIdsToSyncBansIn } from '../../lib/utils/hooks/useGuildIdsToSync
 })
 export class BanAddChecker extends Listener<typeof Events.GuildBanAdd> {
 	public async run(ban: GuildBan) {
+		if (recentlySeenBanEvents.has(ban.user.id)) {
+			this.container.logger.debug(
+				`Ignoring ban from ${ban.guild.name} (${ban.guild.id}) for ${ban.user.tag} (${ban.user.id}) because it was recently seen`,
+			);
+			return;
+		}
+
+		recentlySeenBanEvents.set(ban.user.id, { userId: ban.user.id, at: Date.now() });
+
 		const fullBan = await ban.fetch(true);
 
-		this.container.logger.info(`Processing ban for ${fullBan.user.tag} (${fullBan.user.id})`);
+		this.container.logger.info(
+			`Received ban create for ${fullBan.user.tag} (${fullBan.user.id}) in ${fullBan.guild.name} (${
+				fullBan.guild.id
+			}) for: ${fullBan.reason ?? 'no reason'}. Syncing with the other guilds...`,
+		);
 		// Create DB entry for it
 		await this.container.prisma.sharedGuildBan.upsert({
 			create: {
@@ -35,12 +59,16 @@ export class BanAddChecker extends Listener<typeof Events.GuildBanAdd> {
 			if (maybeMember) {
 				if (!maybeMember.bannable) {
 					container.logger.warn(
-						`Can't ban user ${fullBan.user.id} from guild ${guild.name} (${
+						`  Can't ban user ${fullBan.user.tag} (${fullBan.user.id}) from guild ${guild.name} (${
 							guild.id
 						}) because they are above me (previously banned for: ${fullBan.reason ?? 'no reason'})`,
 					);
 					continue;
 				}
+
+				this.container.logger.info(
+					`  Banning user ${fullBan.user.tag} (${fullBan.user.id}) in guild ${guild.name} (${guild.id})`,
+				);
 
 				await guild.bans.create(maybeMember.id, {
 					days: 0,
@@ -57,7 +85,19 @@ export class BanAddChecker extends Listener<typeof Events.GuildBanAdd> {
 })
 export class BanRemoveChecker extends Listener<typeof Events.GuildBanRemove> {
 	public async run(ban: GuildBan) {
-		this.container.logger.info(`Processing unban for ${ban.user.tag} (${ban.user.id})`);
+		if (recentlySeenBanEvents.has(ban.user.id)) {
+			this.container.logger.debug(
+				`Ignoring unban from ${ban.guild.name} (${ban.guild.id}) for ${ban.user.tag} (${ban.user.id}) because it was recently seen`,
+			);
+			return;
+		}
+
+		recentlySeenBanEvents.set(ban.user.id, { userId: ban.user.id, at: Date.now() });
+
+		this.container.logger.info(
+			`Received ban delete for ${ban.user.tag} (${ban.user.id}) in ${ban.guild.name} (${ban.guild.id}). Syncing with the other guilds...`,
+		);
+
 		await this.container.prisma.sharedGuildBan.delete({
 			where: { user_id: ban.user.id },
 		});
@@ -65,7 +105,21 @@ export class BanRemoveChecker extends Listener<typeof Events.GuildBanRemove> {
 		for await (const guild of getUsableGuilds()) {
 			try {
 				await guild.bans.remove(ban.user.id, `BAN SYNC(${ban.guild.name}): Unbanned from server`);
-			} catch {}
+				this.container.logger.info(
+					`  Removed ban from user ${ban.user.tag} (${ban.user.id}) in guild ${guild.name} (${guild.id})`,
+				);
+			} catch (err) {
+				if (err instanceof DiscordAPIError) {
+					if (err.code === RESTJSONErrorCodes.UnknownBan) {
+						continue;
+					}
+
+					this.container.logger.warn(
+						`  Failed to remove ban from user ${ban.user.tag} (${ban.user.id}) in guild ${guild.name} (${guild.id})`,
+						err,
+					);
+				}
+			}
 		}
 	}
 }
@@ -77,14 +131,14 @@ async function* getUsableGuilds() {
 		const guild = container.client.guilds.resolve(guildId);
 
 		if (!guild) {
-			container.logger.warn(`Couldn't find guild ${guildId} to sync bans with!`);
+			container.logger.warn(`  Couldn't find guild ${guildId} to sync bans with!`);
 			continue;
 		}
 
 		const me = await guild.members.fetch({ user: container.client.user!.id });
 		if (!me.permissions.has(PermissionFlagsBits.BanMembers)) {
 			container.logger.warn(
-				`Can't apply bans/unbans in guild ${guild.name} (${guildId}) because I don't have the Ban Members permission!`,
+				`  Can't apply bans/unbans in guild ${guild.name} (${guildId}) because I don't have the Ban Members permission!`,
 			);
 			continue;
 		}
