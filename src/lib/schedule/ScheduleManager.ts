@@ -93,7 +93,11 @@ export class ScheduleManager {
 					}
 					case ResponseType.Finished: {
 						removed.push(response.entry);
-						await em.delete({ where: { id: response.entry.id } });
+						try {
+							await em.delete({ where: { id: response.entry.id } });
+						} catch (err) {
+							container.logger.warn(`Failed to delete schedule entry ${response.entry.id}, possibly deleted already.`);
+						}
 						continue;
 					}
 					case ResponseType.Ignore: {

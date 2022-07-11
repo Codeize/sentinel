@@ -1,4 +1,4 @@
-import type { GuildTextBasedChannel } from 'discord.js';
+import type { GuildTextBasedChannel, Message } from 'discord.js';
 import { Task } from '../lib/schedule/tasks/Task.js';
 
 export class CheckAutoPins extends Task {
@@ -19,9 +19,19 @@ export class CheckAutoPins extends Task {
 				continue;
 			}
 
-			const lastMessages = await channel.messages.fetch({ limit: 1 }, { cache: false, force: true });
+			let msg: Message | undefined;
 
-			const msg = lastMessages.first();
+			try {
+				const lastMessages = await channel.messages.fetch({ limit: 1 }, { cache: false, force: true });
+
+				msg = lastMessages.first();
+			} catch (err) {
+				this.container.logger.warn(
+					`Failed to fetch messages for autopin ${autoPin.id} in channel ${channel.name} (${channel.id})`,
+					err,
+				);
+				continue;
+			}
 
 			if ((msg?.id ?? '-0') === autoPin.last_message_id) {
 				// Same message as before, update and skip
