@@ -29,6 +29,7 @@ const client = new UtilsBot({
 		Intents.FLAGS.GUILD_MESSAGES,
 		Intents.FLAGS.GUILD_VOICE_STATES,
 	]),
+	partials: ['CHANNEL', 'MESSAGE'],
 	caseInsensitiveCommands: true,
 	loadMessageCommandListeners: true,
 	logger: {
