@@ -35,7 +35,7 @@ const client = new UtilsBot({
 	loadMessageCommandListeners: true,
 	logger: {
 		depth: 2,
-		level: Reflect.has(process.env, 'PM2_HOME') ? LogLevel.Info : LogLevel.Info,
+		level: Reflect.has(process.env, 'PM2_HOME') ? LogLevel.Info : LogLevel.Debug,
 	},
 	loadDefaultErrorListeners: false,
 	makeCache: Options.cacheWithLimits({

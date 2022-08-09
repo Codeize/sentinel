@@ -38,21 +38,21 @@ export class RoleSyncCommand extends Subcommand {
 		const rawOriginRole = interaction.options.getString('origin_role', true);
 		const roleInThisServer = interaction.options.getRole('role_in_this_server', true);
 
-		const resolvedGuild = this._resolveGuildForOriginServerOption(rawOriginServer);
+		const resolvedOriginGuild = this._resolveGuildForOriginServerOption(rawOriginServer);
 
-		if (!resolvedGuild) {
+		if (!resolvedOriginGuild) {
 			return interaction.reply({
 				ephemeral: true,
 				embeds: [createInfoEmbed(`Could not resolve the guild you provided.`)],
 			});
 		}
 
-		const role = this._resolveRoleFromOriginRoleOptionInOriginServer(resolvedGuild, rawOriginRole);
+		const originRole = this._resolveRoleFromOriginRoleOptionInOriginServer(resolvedOriginGuild, rawOriginRole);
 
-		if (!role) {
+		if (!originRole) {
 			return interaction.reply({
 				ephemeral: true,
-				embeds: [createInfoEmbed(`Could not resolve the role you provided in ${resolvedGuild.name}.`)],
+				embeds: [createInfoEmbed(`Could not resolve the role you provided in ${resolvedOriginGuild.name}.`)],
 			});
 		}
 
@@ -73,17 +73,70 @@ export class RoleSyncCommand extends Subcommand {
 			data: {
 				destination_guild_id: interaction.guildId,
 				destination_role_id: roleInThisServer.id,
-				origin_guild_id: resolvedGuild.id,
-				origin_role_id: role.id,
+				origin_guild_id: resolvedOriginGuild.id,
+				origin_role_id: originRole.id,
 			},
 		});
 
-		return interaction.reply({
+		await interaction.reply({
 			embeds: [
 				createInfoEmbed(
-					`Created role sync entry with id \`${roleSyncEntry.id}\`!\n\nAs a reminder, members in the ${resolvedGuild.name} server that receive or lose the role \`@${role.name}\` will have it synced in this server via the ${roleInThisServer} role.`,
+					`Created role sync entry with id \`${roleSyncEntry.id}\`!\n\nAs a reminder, members in the ${resolvedOriginGuild.name} server that receive or lose the role \`@${originRole.name}\` will have it synced in this server via the ${roleInThisServer} role.\n\n> I will process the new changes and follow up once done...`,
 				),
 			],
+		});
+
+		const originGuildMembers = await resolvedOriginGuild.members.fetch();
+		const currentGuildMembers = await interaction.guild.members.fetch();
+
+		for (const member of originGuildMembers.values()) {
+			const memberInCurrentServer = currentGuildMembers.get(member.id);
+
+			if (!memberInCurrentServer) {
+				continue;
+			}
+
+			if (member.roles.cache.has(originRole.id)) {
+				try {
+					await memberInCurrentServer.roles.add(
+						roleInThisServer,
+						`Role sync: added role as member has the role in ${resolvedOriginGuild.name}`,
+					);
+				} catch (err) {
+					await interaction.followUp({
+						ephemeral: true,
+						embeds: [
+							createInfoEmbed(
+								`Failed to role sync ${memberInCurrentServer.user.tag} (${memberInCurrentServer.user.id}): ${
+									(err as any).message
+								}`,
+							),
+						],
+					});
+				}
+			} else {
+				try {
+					await memberInCurrentServer.roles.add(
+						roleInThisServer,
+						`Role sync: removed role from member as they lack the role in ${resolvedOriginGuild.name}`,
+					);
+				} catch (err) {
+					await interaction.followUp({
+						ephemeral: true,
+						embeds: [
+							createInfoEmbed(
+								`Failed to role sync ${memberInCurrentServer.user.tag} (${memberInCurrentServer.user.id}): ${
+									(err as any).message
+								}`,
+							),
+						],
+					});
+				}
+			}
+		}
+
+		await interaction.followUp({
+			embeds: [createInfoEmbed('Finished processing possible role syncs for the newly added role sync entry.')],
 		});
 	}
 
@@ -170,8 +223,8 @@ export class RoleSyncCommand extends Subcommand {
 			usableRoleSyncs.push(
 				[
 					`Origin server          : ${originGuild.name} (${originGuild.id})`,
-					`├── Origin role        : @${originRole.name} (${originRole.id})`,
-					`└── Role in this server: ${destinationRole.toString()} (${destinationRole.id})`,
+					`▶️ Origin role        : @${originRole.name} (${originRole.id})`,
+					`▶️ Role in this server: ${destinationRole.toString()} (${destinationRole.id})`,
 				].join('\n'),
 			);
 		}
