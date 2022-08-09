@@ -1,7 +1,3 @@
-// /role-sync add <origin_guild> <origin_role> <role_in_this_server>
-// /role-sync remove <autocompleted_option_role_in_this_server>
-// /role-sync list
-
 import { ApplyOptions } from '@sapphire/decorators';
 import { PaginatedMessage } from '@sapphire/discord.js-utilities';
 import { Subcommand, SubcommandMappingArray } from '@sapphire/plugin-subcommands';
