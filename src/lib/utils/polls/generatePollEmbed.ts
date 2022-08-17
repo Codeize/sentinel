@@ -7,7 +7,7 @@ export function generatePollEmbedDescription(
 	},
 	ended: boolean,
 ) {
-	const entries = [];
+	const entries = ['**Results:**'];
 
 	for (let i = 0; i < poll.options.length; i++) {
 		const options = poll.answers.filter((answer) => answer.option_index === i);
