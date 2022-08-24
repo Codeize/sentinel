@@ -31,7 +31,7 @@ export class EndPoll extends Task {
 
 		const message = messageFetchResult.unwrap();
 
-		const newEmbedDescription = [`**The poll ended!**`, '', '**Results:**', generatePollEmbedDescription(poll, true)];
+		const newEmbedDescription = [`**The poll ended!**`, '', generatePollEmbedDescription(poll, true)];
 
 		newEmbedDescription.push(
 			`> In total, there ${
