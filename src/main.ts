@@ -28,6 +28,7 @@ const client = new UtilsBot({
 		IntentsBitField.Flags.GuildMessages,
 		IntentsBitField.Flags.GuildVoiceStates,
 		IntentsBitField.Flags.DirectMessages,
+		IntentsBitField.Flags.MessageContent,
 	]),
 	partials: [Partials.Channel, Partials.Message],
 	caseInsensitiveCommands: true,
