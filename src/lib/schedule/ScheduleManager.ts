@@ -74,7 +74,10 @@ export class ScheduleManager {
 			}
 
 			// Check if the Schedule has a task to run and run them if they exist
-			if (!execute.length) return;
+			if (!execute.length) {
+				this.checkInterval();
+				return;
+			}
 			await this.handleResponses(await Promise.all(execute));
 		}
 
@@ -157,7 +160,7 @@ export class ScheduleManager {
 	 */
 	private clearInterval(): void {
 		if (this.#interval) {
-			TimerManager.clearInterval(this.#interval);
+			TimerManager.clearTimeout(this.#interval);
 			this.#interval = null;
 		}
 	}
@@ -167,7 +170,8 @@ export class ScheduleManager {
 	 */
 	private checkInterval(): void {
 		if (!this.queue.length) this.clearInterval();
-		else if (!this.#interval) this.#interval = TimerManager.setInterval(this.execute.bind(this), 5000);
+		else if (this.#interval) this.#interval.refresh();
+		else this.#interval = TimerManager.setTimeout(this.execute.bind(this), 1000);
 	}
 
 	/**
