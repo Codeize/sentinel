@@ -28,7 +28,7 @@ export async function addMediaOnlyChannel(channelId: string, guildId: string) {
 }
 
 export async function removeMediaOnlyChannel(channelId: string) {
-	await container.prisma.messageOnlyChannel.delete({
+	await container.prisma.messageOnlyChannel.deleteMany({
 		where: {
 			channel_id: channelId,
 		},

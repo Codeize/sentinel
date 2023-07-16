@@ -1,6 +1,7 @@
 import { PermissionFlagsBits } from 'discord-api-types/v10';
 import type { GuildTextBasedChannel, Message } from 'discord.js';
 import { Task } from '../lib/schedule/tasks/Task.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageCreateOptions } from 'discord.js';
 
 const indent = ' '.repeat(4);
 const header = '[AUTOPIN] ';
@@ -17,6 +18,12 @@ export class CheckAutoPins extends Task {
 		this.container.logger.info(`${header}Starting processing autopins...`);
 
 		for (const autoPin of autoPins) {
+			const offset = Math.floor((Date.now() - autoPin.last_check.getTime()) / 1000);
+
+			if (offset < autoPin.check_every_seconds) {
+				continue;
+			}
+
 			const channel = (await this.container.client.channels
 				.fetch(autoPin.channel_id)
 				.catch(() => null)) as GuildTextBasedChannel | null;
@@ -73,10 +80,22 @@ export class CheckAutoPins extends Task {
 			}
 
 			try {
-				const newMessage = await channel.send({
+				const messageOptions: MessageCreateOptions = {
 					content: autoPin.content,
 					allowedMentions: { parse: [] },
-				});
+				};
+
+				if (autoPin.button_link && autoPin.button_label) {
+					const url = autoPin.button_link.startsWith('http') ? autoPin.button_link : `https://${autoPin.button_link}`;
+
+					messageOptions.components = [
+						new ActionRowBuilder<ButtonBuilder>().addComponents([
+							new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel(autoPin.button_label),
+						]),
+					];
+				}
+
+				const newMessage = await channel.send(messageOptions);
 
 				await this.container.prisma.autoPin.update({
 					data: {

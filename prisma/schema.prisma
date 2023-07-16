@@ -44,6 +44,8 @@ model SharedGuildBan {
 model AutoPin {
   id                  String   @id @default(cuid())
   content             String
+  button_link         String?
+  button_label        String?
   channel_id          String
   guild_id            String
   check_every_seconds BigInt

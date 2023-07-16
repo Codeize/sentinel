@@ -1,3 +1,6 @@
+// @ts-ignore We cannot use import type here because we use this import to create an alias
+import { Prisma } from '@prisma/client';
+import AutoPinCreateInput = Prisma.AutoPinCreateInput;
 import { inlineCode, time } from '@discordjs/builders';
 import { ApplyOptions } from '@sapphire/decorators';
 import { Subcommand, SubcommandMappingArray } from '@sapphire/plugin-subcommands';
@@ -10,7 +13,7 @@ import { createInfoEmbed } from '../lib/utils/createInfoEmbed.js';
 @ApplyOptions<Subcommand.Options>({
 	description: 'Manages messages that should be kept at the bottom of a channel',
 })
-export class AutoPin extends Subcommand {
+export class AutoPinCommand extends Subcommand {
 	public subcommandMappings: SubcommandMappingArray = [
 		{
 			type: 'method',
@@ -37,6 +40,8 @@ export class AutoPin extends Subcommand {
 	public async createSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		const channel = interaction.options.getChannel('channel', true) as GuildTextBasedChannel;
 		const content = interaction.options.getString('content', true).replaceAll('{newline}', '\n');
+		const buttonLink = interaction.options.getString('button_link');
+		const buttonLabel = interaction.options.getString('button_label');
 		const rawCheckEvery = interaction.options.getString('check_every', true);
 
 		const me = await interaction.guild.members.fetch(this.container.client.user!.id);
@@ -67,19 +72,36 @@ export class AutoPin extends Subcommand {
 		}
 
 		// Get the seconds
-		const parsedCheckEvery = new Duration(rawCheckEvery).offset / Time.Second;
+		const checkEveryOffset = new Duration(isNaN(Number(rawCheckEvery)) ? rawCheckEvery : `${rawCheckEvery} minutes`)
+			.offset;
+
+		if (isNaN(checkEveryOffset)) {
+			await interaction.reply({
+				ephemeral: true,
+				embeds: [
+					createInfoEmbed(`The time interval you entered does not seem to be valid. Try something like "15 minutes"!`),
+				],
+			});
+
+			return;
+		}
+
+		const parsedCheckEvery = checkEveryOffset / Time.Second;
 		const firstCheck = new Date();
+		const autoPinData: AutoPinCreateInput = {
+			channel_id: channel.id,
+			guild_id: interaction.guildId,
+			check_every_seconds: parsedCheckEvery,
+			content,
+			last_check: firstCheck,
+		};
 
-		const entry = await this.container.prisma.autoPin.create({
-			data: {
-				channel_id: channel.id,
-				guild_id: interaction.guildId,
-				check_every_seconds: parsedCheckEvery,
-				content,
-				last_check: firstCheck,
-			},
-		});
+		if (buttonLink && buttonLabel) {
+			autoPinData.button_link = buttonLink;
+			autoPinData.button_label = buttonLabel;
+		}
 
+		const entry = await this.container.prisma.autoPin.create({ data: autoPinData });
 		const firstCheckFormatted = time(new Date(firstCheck.getTime() + parsedCheckEvery * Time.Second), 'R');
 
 		await interaction.reply({
@@ -111,14 +133,20 @@ export class AutoPin extends Subcommand {
 
 		await this.container.prisma.autoPin.delete({ where: { id: code } });
 
+		const fields = [
+			{ name: 'Channel its checked in', value: `<#${entry.channel_id}> (${entry.channel_id})`, inline: true },
+			{ name: 'Check every', value: durationFormat.format(Number(entry.check_every_seconds) * 1000), inline: true },
+		];
+
+		if (entry.button_link) {
+			fields.push({ name: 'Link button URL', value: entry.button_link, inline: true });
+		}
+
 		await interaction.reply({
 			embeds: [
 				createInfoEmbed(
 					`Auto-pinned message ${inlineCode(code)} deleted. Attached is the content of the message.`,
-				).addFields([
-					{ name: 'Channel its checked in', value: `<#${entry.channel_id}> (${entry.channel_id})`, inline: true },
-					{ name: 'Check every', value: durationFormat.format(Number(entry.check_every_seconds) * 1000), inline: true },
-				]),
+				).addFields(fields),
 			],
 		});
 
@@ -130,11 +158,11 @@ export class AutoPin extends Subcommand {
 	}
 
 	public async listSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		const messages = await this.container.prisma.autoPin.findMany({
+		const autoPins = await this.container.prisma.autoPin.findMany({
 			where: { guild_id: interaction.guildId },
 		});
 
-		if (messages.length === 0) {
+		if (autoPins.length === 0) {
 			await interaction.reply({
 				ephemeral: true,
 				embeds: [createInfoEmbed('There are no auto-pinned messages configured in this guild')],
@@ -143,10 +171,10 @@ export class AutoPin extends Subcommand {
 			return;
 		}
 
-		const listOfIds = messages.map(
-			(message) =>
-				`- ${inlineCode(message.id)} - <#${message.channel_id}> (${message.channel_id})\n└─ Next check: ${time(
-					new Date(message.last_check.getTime() + Number(message.check_every_seconds * 1000n)),
+		const listOfIds = autoPins.map(
+			(autoPin) =>
+				`- ${inlineCode(autoPin.id)} - <#${autoPin.channel_id}> (${autoPin.channel_id})\n└─ Next check: ${time(
+					new Date(autoPin.last_check.getTime() + Number(autoPin.check_every_seconds * 1000n)),
 					'R',
 				)}`,
 		);
@@ -154,7 +182,7 @@ export class AutoPin extends Subcommand {
 		await interaction.reply({
 			embeds: [
 				createInfoEmbed(listOfIds.join('\n\n')).setTitle(
-					`There are ${messages.length} auto-pinned messages in this server`,
+					`There are ${autoPins.length} auto-pinned messages in this server`,
 				),
 			],
 		});
@@ -225,6 +253,12 @@ export class AutoPin extends Subcommand {
 								.setName('check_every')
 								.setDescription('How often should the channel be checked to repost the message (ex.: 1 hour 5 minutes)')
 								.setRequired(true),
+						)
+						.addStringOption((linkButton) =>
+							linkButton
+								.setName('link_button')
+								.setDescription('If you want the message to have a link button, enter the link it should go to')
+								.setRequired(false),
 						),
 				)
 				.addSubcommand((deleteSubCmd) =>
