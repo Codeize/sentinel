@@ -1,6 +1,6 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { PaginatedMessage } from '@sapphire/discord.js-utilities';
-import { Subcommand, SubcommandMappingArray } from '@sapphire/plugin-subcommands';
+import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { chunk } from '@sapphire/utilities';
 import { PermissionFlagsBits } from 'discord-api-types/v10';
 import type { ApplicationCommandOptionChoiceData, Guild } from 'discord.js';
@@ -111,13 +111,13 @@ export class RoleSyncCommand extends Subcommand {
 						roleInThisServer,
 						`Role sync: added role as member has the role in ${resolvedOriginGuild.name}`,
 					);
-				} catch (err) {
+				} catch (error) {
 					await interaction.followUp({
 						ephemeral: true,
 						embeds: [
 							createInfoEmbed(
 								`Failed to role sync ${memberInCurrentServer.user.tag} (${memberInCurrentServer.user.id}): ${
-									(err as any).message
+									(error as any).message
 								}`,
 							),
 						],
@@ -129,13 +129,13 @@ export class RoleSyncCommand extends Subcommand {
 						roleInThisServer,
 						`Role sync: removed role from member as they lack the role in ${resolvedOriginGuild.name}`,
 					);
-				} catch (err) {
+				} catch (error) {
 					await interaction.followUp({
 						ephemeral: true,
 						embeds: [
 							createInfoEmbed(
 								`Failed to role sync ${memberInCurrentServer.user.tag} (${memberInCurrentServer.user.id}): ${
-									(err as any).message
+									(error as any).message
 								}`,
 							),
 						],
@@ -248,7 +248,9 @@ export class RoleSyncCommand extends Subcommand {
 		const chunks = chunk(usableRoleSyncs, 5);
 		for (const usableChunk of chunks) {
 			paginated.addPageEmbed((embed) =>
-				embed.setDescription(usableChunk.join('\n\n')).setTitle('Here are the role syncs setup in this server:'),
+				embed
+					.setDescription(usableChunk.join('\n\n'))
+					.setTitle('Here are the role syncs setup in this server:'),
 			);
 		}
 
@@ -261,7 +263,9 @@ export class RoleSyncCommand extends Subcommand {
 
 		switch (focusedOption.name) {
 			case 'origin_server': {
-				const guilds = [...this.container.client.guilds.cache.values()].sort((a, b) => a.name.localeCompare(b.name));
+				const guilds = [...this.container.client.guilds.cache.values()].sort((a, b) =>
+					a.name.localeCompare(b.name),
+				);
 
 				const startsWith: ApplicationCommandOptionChoiceData[] = [];
 				const contains: ApplicationCommandOptionChoiceData[] = [];
@@ -298,6 +302,7 @@ export class RoleSyncCommand extends Subcommand {
 
 				return interaction.respond([...startsWith, ...contains, ...other]);
 			}
+
 			case 'origin_role': {
 				const rawOriginServer = interaction.options.getString('origin_server');
 
@@ -363,6 +368,7 @@ export class RoleSyncCommand extends Subcommand {
 
 				return interaction.respond([...startsWith, ...contains, ...other]);
 			}
+
 			case 'role_sync': {
 				// Role sync entries for this server
 				const entries = await this.container.prisma.roleSync.findMany({
@@ -387,14 +393,16 @@ export class RoleSyncCommand extends Subcommand {
 					}
 
 					const prefix =
-						guild?.name.toLowerCase().includes(input) ||
-						guild?.id === input ||
-						role?.name.toLowerCase().includes(input) ||
-						role?.id === input ||
-						destinationRole.name.toLowerCase().includes(input) ||
-						destinationRole.id === input
-							? '📌 '
-							: '';
+						(
+							guild?.name.toLowerCase().includes(input) ||
+							guild?.id === input ||
+							role?.name.toLowerCase().includes(input) ||
+							role?.id === input ||
+							destinationRole.name.toLowerCase().includes(input) ||
+							destinationRole.id === input
+						) ?
+							'📌 '
+						:	'';
 
 					options.push({
 						name: `${prefix}${trimPretty(guild?.name ?? 'Unknown', 7)} (${entry.origin_guild_id}), ${trimPretty(
@@ -407,6 +415,7 @@ export class RoleSyncCommand extends Subcommand {
 
 				return interaction.respond(options.sort((a) => (a.name.startsWith('📌') ? -1 : 1)));
 			}
+
 			default: {
 				return interaction.respond([
 					{
@@ -442,7 +451,9 @@ export class RoleSyncCommand extends Subcommand {
 						.addStringOption((originRole) =>
 							originRole
 								.setName('origin_role')
-								.setDescription('The origin role from the origin server to monitor (or role id if autocomplete fails)')
+								.setDescription(
+									'The origin role from the origin server to monitor (or role id if autocomplete fails)',
+								)
 								.setRequired(true)
 								.setAutocomplete(true)
 								.setMinLength(16),
@@ -461,12 +472,16 @@ export class RoleSyncCommand extends Subcommand {
 						.addStringOption((role) =>
 							role
 								.setName('role_sync')
-								.setDescription('The role sync to remove (or the entry id received from the list subcommand)')
+								.setDescription(
+									'The role sync to remove (or the entry id received from the list subcommand)',
+								)
 								.setRequired(true)
 								.setAutocomplete(true),
 						),
 				)
-				.addSubcommand((list) => list.setName('list').setDescription('Lists all role syncs setup in this server')),
+				.addSubcommand((list) =>
+					list.setName('list').setDescription('Lists all role syncs setup in this server'),
+				),
 		);
 	}
 
@@ -477,7 +492,7 @@ export class RoleSyncCommand extends Subcommand {
 			return this.container.client.guilds.resolve(option);
 		} catch {
 			// We assume the pattern is ours ([emoji] name (id))
-			const results = option.match(/\((\d+)\)$/);
+			const results = /\((\d+)\)$/.exec(option);
 
 			return results ? this.container.client.guilds.resolve(results[1]) : null;
 		}
@@ -490,7 +505,7 @@ export class RoleSyncCommand extends Subcommand {
 			return guild.roles.resolve(option);
 		} catch {
 			// We assume the pattern is ours ([emoji] name (id))
-			const results = option.match(/\((\d+)\)$/);
+			const results = /\((\d+)\)$/.exec(option);
 
 			return results ? guild.roles.resolve(results[1]) : null;
 		}

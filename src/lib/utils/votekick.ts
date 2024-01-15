@@ -1,15 +1,8 @@
 import type { Prisma, VoteKick } from '@prisma/client';
 import { container } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
-import {
-	ActionRowBuilder,
-	ButtonBuilder,
-	ButtonStyle,
-	ChatInputCommandInteraction,
-	EmbedBuilder,
-	User,
-	VoiceChannel,
-} from 'discord.js';
+import type { ChatInputCommandInteraction, User, VoiceChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { getMessageUrlFromInteractionResponse, toReadableUser } from '../utils.js';
 
 export async function createVoteKick(
@@ -121,6 +114,6 @@ export async function announceAlreadyStartedVoteKick(
 	});
 }
 
-function generateButtonId(action: 'yes' | 'no', kickedUserId: string, voiceChannelId: string) {
+function generateButtonId(action: 'no' | 'yes', kickedUserId: string, voiceChannelId: string) {
 	return `votekick.${action}.${kickedUserId}.${voiceChannelId}`;
 }

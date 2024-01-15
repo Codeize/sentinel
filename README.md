@@ -2,9 +2,9 @@
 
 A simple slash command based bot that hosts some utilities, mainly:
 
-- Keeping a bot message at the end of the channel on an interval
-- Syncing bans across guilds
-- Allowing only messages that have attachments in certain channels
+-   Keeping a bot message at the end of the channel on an interval
+-   Syncing bans across guilds
+-   Allowing only messages that have attachments in certain channels
 
 ## How to setup
 

@@ -1,6 +1,7 @@
 import { container } from '@sapphire/framework';
 import { DurationFormatter, Timestamp } from '@sapphire/time-utilities';
-import { GatewayMessageCreateDispatchData, Interaction, Message, User } from 'discord.js';
+import { Message } from 'discord.js';
+import type { User, type GatewayMessageCreateDispatchData, type Interaction } from 'discord.js';
 
 export const timeFormat = new Timestamp('YYYY-MM-DD [at] HH:mm:ss [UTC]');
 
@@ -16,15 +17,17 @@ export async function fetchReadableUser(id: string) {
 }
 
 export async function getMemberFromInteraction(interaction: Interaction) {
-	if (!interaction.guildId) return null;
+	if (!interaction.inCachedGuild()) {
+		return null;
+	}
 
-	const guild = interaction.guild!;
-	const member = interaction.member!;
+	const { guild } = interaction;
+	const { member } = interaction;
 
 	return guild.members.fetch({ user: member.user.id });
 }
 
-export function getMessageUrlFromInteractionResponse(message: Message | GatewayMessageCreateDispatchData) {
+export function getMessageUrlFromInteractionResponse(message: GatewayMessageCreateDispatchData | Message) {
 	if (message instanceof Message) {
 		return message.url;
 	}

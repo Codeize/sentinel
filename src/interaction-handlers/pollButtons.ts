@@ -2,7 +2,8 @@
 
 import { ApplyOptions } from '@sapphire/decorators';
 import { InteractionHandler, InteractionHandlerTypes, Result } from '@sapphire/framework';
-import { ButtonInteraction, EmbedBuilder, Message } from 'discord.js';
+import type { ButtonInteraction, Message } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import { createInfoEmbed } from '../lib/utils/createInfoEmbed.js';
 import { generatePollEmbedDescription } from '../lib/utils/polls/generatePollEmbed.js';
 
@@ -61,6 +62,7 @@ export class PollButtonHandler extends InteractionHandler {
 					ephemeral: true,
 				});
 			}
+
 			case 'remove_selection': {
 				try {
 					const answer = await this.container.prisma.pollAnswer.delete({
@@ -88,6 +90,7 @@ export class PollButtonHandler extends InteractionHandler {
 					});
 				}
 			}
+
 			default: {
 				const [_, index] = action.split('_');
 
@@ -157,7 +160,9 @@ export class PollButtonHandler extends InteractionHandler {
 
 				return interaction.followUp({
 					embeds: [
-						createInfoEmbed(`You voted for option number **${numericIndex + 1}**: ${poll.options[numericIndex]}`),
+						createInfoEmbed(
+							`You voted for option number **${numericIndex + 1}**: ${poll.options[numericIndex]}`,
+						),
 					],
 					ephemeral: true,
 				});
@@ -175,7 +180,9 @@ export class PollButtonHandler extends InteractionHandler {
 		const newDescription = generatePollEmbedDescription(poll, false);
 
 		const originalMessage = (
-			await Result.fromAsync(() => interaction.channel!.messages.fetch(interaction.message.id) as Promise<Message>)
+			await Result.fromAsync(
+				async () => interaction.channel!.messages.fetch(interaction.message.id) as Promise<Message>,
+			)
 		).unwrapOr(null);
 
 		if (originalMessage) {

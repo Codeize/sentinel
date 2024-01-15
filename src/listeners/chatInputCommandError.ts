@@ -1,4 +1,4 @@
-import { ChatInputCommandDeniedPayload, Listener } from '@sapphire/framework';
+import { type ChatInputCommandDeniedPayload, Listener } from '@sapphire/framework';
 import type { UserError } from '../lib/extensions/UserError.js';
 import { createInfoEmbed } from '../lib/utils/createInfoEmbed.js';
 
@@ -9,6 +9,7 @@ export default class extends Listener {
 		} else {
 			await context.interaction.reply({ ephemeral: true, embeds: [createInfoEmbed(error.message)] });
 		}
+
 		if (!(error as UserError).isArgumentError) this.container.logger.error(error.stack ?? (error.message || error));
 	}
 }

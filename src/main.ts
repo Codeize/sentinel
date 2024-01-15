@@ -1,16 +1,30 @@
 import '@sapphire/plugin-logger/register';
 
+import process from 'node:process';
+import { inspect } from 'node:util';
 import { ApplicationCommandRegistries, LogLevel, RegisterBehavior } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
 import { createColors } from 'colorette';
+import { GuildMember, type User } from 'discord.js';
 import { ActivityType, IntentsBitField, Options, Partials } from 'discord.js';
-import { inspect } from 'util';
 import { UtilsBot } from './lib/UtilsBot.js';
 
 ApplicationCommandRegistries.setDefaultBehaviorWhenNotIdentical(RegisterBehavior.Overwrite);
 
 inspect.defaultOptions.depth = 2;
 const colorette = createColors({ useColor: true });
+
+function checkUserOrMember(userOrMember: GuildMember | User) {
+	if (userOrMember.id !== userOrMember.client.user!.id) {
+		if (userOrMember instanceof GuildMember) {
+			return userOrMember.voice.channelId !== null;
+		}
+
+		return false;
+	}
+
+	return true;
+}
 
 const client = new UtilsBot({
 	presence: {
@@ -59,12 +73,12 @@ const client = new UtilsBot({
 		guildMembers: {
 			interval: Time.Minute * 15,
 			// Sweep all members except the bot member and members in voice channels
-			filter: () => (member) => member.user.id !== member.client.user!.id || Boolean(member.voice.channelId),
+			filter: () => checkUserOrMember,
 		},
 		users: {
 			interval: Time.Minute * 15,
 			// Sweep all users except the bot user
-			filter: () => (user) => user.id !== user.client.user!.id,
+			filter: () => checkUserOrMember,
 		},
 		messages: {
 			interval: Time.Minute * 5,
@@ -77,5 +91,5 @@ try {
 	await client.login();
 } catch (error) {
 	client.logger.error(colorette.red('Failed to launch the bot:'), error);
-	client.destroy();
+	await client.destroy();
 }

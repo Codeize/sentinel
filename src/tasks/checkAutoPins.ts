@@ -1,7 +1,7 @@
 import { PermissionFlagsBits } from 'discord-api-types/v10';
-import type { GuildTextBasedChannel, Message } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import type { GuildTextBasedChannel, Message, MessageCreateOptions } from 'discord.js';
 import { Task } from '../lib/schedule/tasks/Task.js';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageCreateOptions } from 'discord.js';
 
 const indent = ' '.repeat(4);
 const header = '[AUTOPIN] ';
@@ -18,7 +18,7 @@ export class CheckAutoPins extends Task {
 		this.container.logger.info(`${header}Starting processing autopins...`);
 
 		for (const autoPin of autoPins) {
-			const offset = Math.floor((Date.now() - autoPin.last_check.getTime()) / 1000);
+			const offset = Math.floor((Date.now() - autoPin.last_check.getTime()) / 1_000);
 
 			if (offset < autoPin.check_every_seconds) {
 				continue;
@@ -37,7 +37,11 @@ export class CheckAutoPins extends Task {
 
 			const me = await channel.guild.members.fetch(this.container.client.user!.id);
 
-			if (!channel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages], true)) {
+			if (
+				!channel
+					.permissionsFor(me)
+					.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages], true)
+			) {
 				this.container.logger.warn(
 					`${header}${indent}I don't have permissions to view channel / send messages in ${channel.name} (${channel.id}) in guild ${channel.guild.name} (${channel.guild.id})`,
 				);
@@ -50,10 +54,10 @@ export class CheckAutoPins extends Task {
 				const lastMessages = await channel.messages.fetch({ limit: 1, cache: false });
 
 				msg = lastMessages.first();
-			} catch (err) {
+			} catch (error) {
 				this.container.logger.warn(
 					`${header}${indent}Failed to fetch messages for autopin ${autoPin.id} in channel ${channel.name} (${channel.id}) for guild ${channel.guild.name} (${channel.guild.id})`,
-					err,
+					error,
 				);
 				continue;
 			}
@@ -86,7 +90,8 @@ export class CheckAutoPins extends Task {
 				};
 
 				if (autoPin.button_link && autoPin.button_label) {
-					const url = autoPin.button_link.startsWith('http') ? autoPin.button_link : `https://${autoPin.button_link}`;
+					const url =
+						autoPin.button_link.startsWith('http') ? autoPin.button_link : `https://${autoPin.button_link}`;
 
 					messageOptions.components = [
 						new ActionRowBuilder<ButtonBuilder>().addComponents([
@@ -108,10 +113,10 @@ export class CheckAutoPins extends Task {
 				this.container.logger.info(
 					`${header}${indent}Successfully autopinned ${autoPin.id} (new message id: ${newMessage.id}) for channel ${channel.name} (${channel.id}) in guild ${channel.guild.name} (${channel.guild.id})`,
 				);
-			} catch (err) {
+			} catch (error) {
 				this.container.logger.error(
 					`${header}${indent}Failed to autopin ${autoPin.id} for channel ${channel.name} (${channel.id}) for guild ${channel.guild.name} (${channel.guild.id})`,
-					err,
+					error,
 				);
 			}
 		}

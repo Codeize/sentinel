@@ -1,10 +1,10 @@
 import { ApplyOptions } from '@sapphire/decorators';
-import { Listener, ListenerOptions } from '@sapphire/framework';
+import { Listener } from '@sapphire/framework';
 import { cyanBright, green, magenta } from 'colorette';
 import { OAuth2Scopes, PermissionFlagsBits } from 'discord-api-types/v10';
 import { loadMediaOnlyChannels } from '../lib/utils/caches/mediaOnlyCache.js';
 
-@ApplyOptions<ListenerOptions>({
+@ApplyOptions<Listener.Options>({
 	once: true,
 	event: 'ready',
 })

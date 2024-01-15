@@ -1,7 +1,7 @@
 import type { Schedule } from '@prisma/client';
 import { Cron } from '@sapphire/time-utilities';
 import type { Client } from 'discord.js';
-import type { ScheduleManager } from './ScheduleManager';
+import type { ScheduleManager } from './ScheduleManager.js';
 
 export const enum ResponseType {
 	Ignore,
@@ -11,8 +11,8 @@ export const enum ResponseType {
 }
 
 export type PartialResponseValue =
-	| { type: ResponseType.Ignore | ResponseType.Finished }
 	| { type: ResponseType.Delay; value: number }
+	| { type: ResponseType.Finished | ResponseType.Ignore }
 	| { type: ResponseType.Update; value: Date };
 
 export type ResponseValue = PartialResponseValue & { entry: ScheduleEntity };
@@ -54,6 +54,7 @@ export class ScheduleEntity {
 	private paused = true;
 
 	private client: Client = null!;
+
 	private manager: ScheduleManager = null!;
 
 	public constructor(data: Schedule) {
@@ -91,9 +92,9 @@ export class ScheduleEntity {
 
 		if (response !== null) return { ...response, entry: this };
 
-		return this.recurring
-			? { entry: this, type: ResponseType.Update, value: this.recurring.next() }
-			: { entry: this, type: ResponseType.Finished };
+		return this.recurring ?
+				{ entry: this, type: ResponseType.Update, value: this.recurring.next() }
+			:	{ entry: this, type: ResponseType.Finished };
 	}
 
 	public resume() {
@@ -106,7 +107,7 @@ export class ScheduleEntity {
 		return this;
 	}
 
-	public delete() {
+	public async delete() {
 		return this.manager.remove(this);
 	}
 }

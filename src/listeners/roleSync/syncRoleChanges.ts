@@ -25,7 +25,9 @@ export class SyncRole extends Listener {
 					continue;
 				}
 
-				const maybeDestinationMember = await Result.fromAsync(() => destinationGuild.members.fetch(newMember.id));
+				const maybeDestinationMember = await Result.fromAsync(async () =>
+					destinationGuild.members.fetch(newMember.id),
+				);
 
 				await maybeDestinationMember.inspectAsync(async (destinationMember) => {
 					// Had the role before, but not anymore
@@ -39,8 +41,8 @@ export class SyncRole extends Listener {
 								entry.destination_role_id,
 								`Role sync: removing role as the member lost it on the ${newMember.guild.name} server.`,
 							);
-						} catch (err) {
-							this.container.logger.warn(`${header}Failed to process role sync`, err);
+						} catch (error) {
+							this.container.logger.warn(`${header}Failed to process role sync`, error);
 						}
 					} else {
 						this.container.logger.info(
@@ -52,8 +54,8 @@ export class SyncRole extends Listener {
 								entry.destination_role_id,
 								`Role sync: adding role as the member received it on the ${newMember.guild.name} server.`,
 							);
-						} catch (err) {
-							this.container.logger.warn(`${header}Failed to process role sync`, err);
+						} catch (error) {
+							this.container.logger.warn(`${header}Failed to process role sync`, error);
 						}
 					}
 				});

@@ -1,76 +1,115 @@
 import { SqlHighlighter } from '@mikro-orm/sql-highlighter';
-import Prisma from '@prisma/client';
-import { container, SapphireClient, Store } from '@sapphire/framework';
-import { bold, cyanBright, green } from 'colorette';
+import type Prisma from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { container, LogLevel, SapphireClient, Store } from '@sapphire/framework';
+import { bold, cyanBright, gray, green } from 'colorette';
 import type { ClientOptions } from 'discord.js';
 import { ScheduleManager } from './schedule/ScheduleManager.js';
 import { Task } from './schedule/tasks/Task.js';
 
 export class UtilsBot extends SapphireClient {
-	public schedule = new ScheduleManager(this);
+	public override schedule = new ScheduleManager(this);
 
 	private readonly sqlHighlighter = new SqlHighlighter();
 
 	public constructor(options: ClientOptions) {
 		super(options);
-		this.stores.register(new Store(Task as any, { name: 'tasks' }));
+		this.stores.register(new Store(Task, { name: 'tasks' }));
 	}
 
-	public fetchPrefix = () => null;
-	public fetchLanguage = () => 'en-US';
+	public override fetchPrefix = () => null;
 
-	public async login(token?: string) {
-		const prisma = new Prisma.PrismaClient({
+	public override async login(token?: string) {
+		const highlighter = this.sqlHighlighter;
+
+		const prisma = new PrismaClient({
 			errorFormat: 'pretty',
 			log: [
 				{ emit: 'stdout', level: 'warn' },
 				{ emit: 'stdout', level: 'error' },
-				{ emit: 'event', level: 'query' },
 			],
-		});
+		}).$extends({
+			name: 'performance_tracking',
+			query: {
+				async $allOperations({ args, operation, query, model }) {
+					// If we're not in debug mode, just run the query and return
+					if (!container.logger.has(LogLevel.Debug)) {
+						return query(args);
+					}
+
+					const start = performance.now();
+					const result = await query(args);
+					const end = performance.now();
+					const time = end - start;
+
+					if (model) {
+						const stringifiedArgs = JSON.stringify(args, null, 2)
+							.split('\n')
+							.map((line) => gray(line))
+							.join('\n');
+
+						container.logger.debug(
+							`${cyanBright('prisma:query')} ${bold(
+								`${model}.${operation}(${stringifiedArgs}${bold(')')}`,
+							)} took ${bold(`${green(time.toFixed(4))}ms`)}`,
+						);
+					} else {
+						// Most likely in $executeRaw/queryRaw
+						const casted = args as { strings?: string[]; values?: unknown[] } | undefined;
+
+						const consoleMessage = [`${cyanBright('prisma:query')} `, bold(`Prisma.${operation}(\``)];
+
+						const sqlString = [];
+
+						if (casted?.strings) {
+							if (casted.values) {
+								for (const str of casted.strings) {
+									sqlString.push(str);
+
+									const value = casted.values.shift();
+									if (value) {
+										sqlString.push(JSON.stringify(value));
+									}
+								}
+							} else {
+								// just add all the strings
+								sqlString.push(...casted.strings);
+							}
+
+							consoleMessage.push(highlighter.highlight(sqlString.join('')));
+						} else if (Array.isArray(args)) {
+							// Most likely in $executeRawUnsafe/queryRawUnsafe
+							const sqlString = args.shift() as string | undefined;
+
+							if (sqlString) {
+								if (args.length) {
+									for (let paramIndex = 1; paramIndex < args.length; paramIndex++) {
+										sqlString.replace(`$${paramIndex}`, JSON.stringify(args[paramIndex - 1]));
+									}
+
+									consoleMessage.push(highlighter.highlight(sqlString));
+								} else {
+									consoleMessage.push(highlighter.highlight(sqlString));
+								}
+							} else {
+								consoleMessage.push(gray(JSON.stringify(args)));
+							}
+						} else {
+							// Who tf knows brother
+							consoleMessage.push(gray(JSON.stringify(args)));
+						}
+
+						consoleMessage.push(bold('`) '), `took ${bold(`${green(time.toFixed(4))}ms`)}`);
+
+						container.logger.debug(consoleMessage.join(''));
+					}
+
+					return result;
+				},
+			},
+		}) as PrismaClient<{ errorFormat: 'pretty' }>;
 
 		container.prisma = prisma;
-
-		prisma.$on('query', (event) => {
-			try {
-				const paramsArray = JSON.parse(event.params) as unknown[];
-				const newQuery = event.query.replace(/\$(\d+)/g, (_, number) => {
-					const value = paramsArray[Number(number) - 1];
-
-					if (typeof value === 'string') {
-						return `"${value}"`;
-					}
-
-					if (Array.isArray(value)) {
-						return `'${JSON.stringify(value)}'`;
-					}
-
-					return String(value);
-				});
-
-				container.logger.debug(`${cyanBright('prisma:query')} ${this.sqlHighlighter.highlight(newQuery)}`);
-			} catch {
-				container.logger.debug(
-					`${cyanBright('prisma:query')} ${this.sqlHighlighter.highlight(`${event.query} PARAMETERS ${event.params}`)}`,
-				);
-			}
-		});
-
-		prisma.$use(async (params, next) => {
-			const before = Date.now();
-
-			const result = await next(params);
-
-			const after = Date.now();
-
-			this.logger.debug(
-				`${cyanBright('prisma:query')} ${bold(`${params.model}.${params.action}`)} took ${bold(
-					`${green(String(after - before))}ms`,
-				)}`,
-			);
-
-			return result;
-		});
 
 		await prisma.$connect();
 
@@ -78,7 +117,7 @@ export class UtilsBot extends SapphireClient {
 		return super.login(token);
 	}
 
-	public destroy() {
+	public override async destroy() {
 		void container.prisma.$disconnect();
 		return super.destroy();
 	}

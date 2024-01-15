@@ -1,4 +1,5 @@
-import { ChatInputCommandDeniedPayload, Listener, PreconditionError } from '@sapphire/framework';
+import { Listener } from '@sapphire/framework';
+import type { PreconditionError, type ChatInputCommandDeniedPayload } from '@sapphire/framework';
 import { createInfoEmbed } from '../lib/utils/createInfoEmbed.js';
 
 export class ChatInputCommandDeniedListener extends Listener {

@@ -1,6 +1,7 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
-import { ButtonInteraction, EmbedBuilder, Message } from 'discord.js';
+import type { ButtonInteraction, Message } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import { getMemberFromInteraction } from '../lib/utils.js';
 
 @ApplyOptions<InteractionHandler.Options>({
@@ -18,7 +19,7 @@ export class ButtonHandler extends InteractionHandler {
 		// ID format: votekick.<action>.<userId>.<voiceChannelId>
 		const [, action, userId, voiceChannelId] = customId.split('.') as [
 			_: string,
-			action: 'yes' | 'no',
+			action: 'no' | 'yes',
 			userId: string,
 			voiceChannelId: string,
 		];
@@ -47,7 +48,9 @@ export class ButtonHandler extends InteractionHandler {
 		if (!previousVote) {
 			return interaction.reply({
 				ephemeral: true,
-				embeds: [new EmbedBuilder().setColor('Red').setDescription("Couldn't find a vote kick for that message!")],
+				embeds: [
+					new EmbedBuilder().setColor('Red').setDescription("Couldn't find a vote kick for that message!"),
+				],
 			});
 		}
 
@@ -57,7 +60,9 @@ export class ButtonHandler extends InteractionHandler {
 				embeds: [
 					new EmbedBuilder()
 						.setColor('Red')
-						.setDescription("You cannot vote for a member with whom you're not sharing the same voice channel!"),
+						.setDescription(
+							"You cannot vote for a member with whom you're not sharing the same voice channel!",
+						),
 				],
 			});
 		}

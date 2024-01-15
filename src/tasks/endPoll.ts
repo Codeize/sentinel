@@ -1,9 +1,9 @@
 import { Result } from '@sapphire/framework';
 import type { GuildTextBasedChannel } from 'discord.js';
-import { Task, TaskRunData } from '../lib/schedule/tasks/Task.js';
-import { fetchReadableUser } from '../lib/utils.js';
+import { Task, type TaskRunData } from '../lib/schedule/tasks/Task.js';
 import { createInfoEmbed } from '../lib/utils/createInfoEmbed.js';
 import { generatePollEmbedDescription } from '../lib/utils/polls/generatePollEmbed.js';
+import { fetchReadableUser } from '../lib/utils.js';
 
 export class EndPoll extends Task {
 	public async run(data: TaskRunData) {
@@ -22,7 +22,7 @@ export class EndPoll extends Task {
 		}
 
 		const channel = (await this.container.client.channels.fetch(poll.channel_id)) as GuildTextBasedChannel;
-		const messageFetchResult = await Result.fromAsync(() => channel.messages.fetch(poll.message_id));
+		const messageFetchResult = await Result.fromAsync(async () => channel.messages.fetch(poll.message_id));
 
 		if (messageFetchResult.isErr()) {
 			this.container.logger.warn(`Failed to find message for poll ${pollId} with message id ${poll.message_id}`);
@@ -35,7 +35,9 @@ export class EndPoll extends Task {
 
 		newEmbedDescription.push(
 			`> In total, there ${
-				poll.answers.length === 1 ? `was **${poll.answers.length}** vote` : `were **${poll.answers.length}** votes`
+				poll.answers.length === 1 ?
+					`was **${poll.answers.length}** vote`
+				:	`were **${poll.answers.length}** votes`
 			}.`,
 		);
 

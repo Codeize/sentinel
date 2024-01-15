@@ -1,5 +1,5 @@
 import { ApplyOptions } from '@sapphire/decorators';
-import { Subcommand, SubcommandMappingArray } from '@sapphire/plugin-subcommands';
+import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { PermissionFlagsBits } from 'discord-api-types/v10';
 import { createInfoEmbed } from '../lib/utils/createInfoEmbed.js';
 

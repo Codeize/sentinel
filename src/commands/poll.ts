@@ -1,7 +1,7 @@
 import { time } from '@discordjs/builders';
 import type { Poll } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
-import { Subcommand, SubcommandMappingArray } from '@sapphire/plugin-subcommands';
+import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { Duration } from '@sapphire/time-utilities';
 import { chunk } from '@sapphire/utilities';
 import { ButtonStyle, PermissionFlagsBits } from 'discord-api-types/v10';
@@ -9,6 +9,17 @@ import { ActionRowBuilder, ButtonBuilder } from 'discord.js';
 import { createInfoEmbed } from '../lib/utils/createInfoEmbed.js';
 import { generatePollEmbedDescription } from '../lib/utils/polls/generatePollEmbed.js';
 import { trimPretty } from '../lib/utils/trim.js';
+
+const emojiMap = {
+	1: '1️⃣',
+	2: '2️⃣',
+	3: '3️⃣',
+	4: '4️⃣',
+	5: '5️⃣',
+	6: '6️⃣',
+	7: '7️⃣',
+	8: '8️⃣',
+};
 
 @ApplyOptions<Subcommand.Options>({
 	description: 'Poll your members if pineapple belongs on pizza...or something',
@@ -28,7 +39,7 @@ export class PollCommand extends Subcommand {
 
 		const pollOptions = interaction.options.data[0]
 			.options!.filter((option) => option.name.startsWith('option_'))
-			.sort()
+			.sort((a, b) => (a.value as string).localeCompare(b.value as string))
 			.map((opt) => opt.value) as string[];
 
 		const parsedEndAfter = new Duration(rawEndsAfter).fromNow;
@@ -68,7 +79,9 @@ export class PollCommand extends Subcommand {
 
 		await interaction.reply({
 			ephemeral: true,
-			embeds: [createInfoEmbed(`The poll with id \`${poll.id}\` was created! It will end at ${time(parsedEndAfter)}`)],
+			embeds: [
+				createInfoEmbed(`The poll with id \`${poll.id}\` was created! It will end at ${time(parsedEndAfter)}`),
+			],
 		});
 	}
 
@@ -93,12 +106,12 @@ export class PollCommand extends Subcommand {
 								.setRequired(true),
 						);
 
-					for (let i = 1; i < 9; i++) {
+					for (let optionIndex = 1; optionIndex < 9; optionIndex++) {
 						create.addStringOption((option) =>
 							option
-								.setName(`option_${i}`)
+								.setName(`option_${optionIndex}`)
 								.setDescription('An option the users can choose from')
-								.setRequired(i === 1 || i === 2),
+								.setRequired(optionIndex === 1 || optionIndex === 2),
 						);
 					}
 
@@ -148,14 +161,3 @@ export class PollCommand extends Subcommand {
 		return [...optionRows, specialActionsRow];
 	}
 }
-
-const emojiMap = {
-	1: '1️⃣',
-	2: '2️⃣',
-	3: '3️⃣',
-	4: '4️⃣',
-	5: '5️⃣',
-	6: '6️⃣',
-	7: '7️⃣',
-	8: '8️⃣',
-};

@@ -1,14 +1,16 @@
+import process from 'node:process';
 import { time } from '@discordjs/builders';
 import type { User, VoteKick } from '@prisma/client';
 import { Time } from '@sapphire/time-utilities';
-import { EmbedBuilder, TextChannel } from 'discord.js';
+import type { TextChannel } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import memoize from 'lodash.memoize';
-import { Task, TaskRunData } from '../../lib/schedule/tasks/Task.js';
+import { Task, type TaskRunData } from '../../lib/schedule/tasks/Task.js';
 import { fetchReadableUser } from '../../lib/utils.js';
 
 export interface VoteInput {
-	voteId: string;
 	expectedNumberOfVotesToDecideOutcome: number;
+	voteId: string;
 }
 
 export enum FinalAction {
@@ -18,7 +20,8 @@ export enum FinalAction {
 }
 
 const actionToResult = {
-	[FinalAction.NotEnoughVotes]: "no actions will be taken, as the vote didn't have a majority of the votes on one side",
+	[FinalAction.NotEnoughVotes]:
+		"no actions will be taken, as the vote didn't have a majority of the votes on one side",
 	[FinalAction.Kick]: 'the user was kicked and timed out from joining voice channels',
 	[FinalAction.Ignore]: "the user won't be kicked out as the majority voted against it",
 };
@@ -31,6 +34,12 @@ const kickAmountToDelay = {
 	// Last kick
 	3: (_now: number) => null,
 };
+
+const parseMessageUrl = memoize((url: string) => {
+	const [_https, _, _domain, _path, guildId, channelId, messageId] = url.split('/');
+
+	return { guildId, channelId, messageId };
+});
 
 export class HandleVoteResult extends Task {
 	public async run(payload: TaskRunData) {
@@ -106,7 +115,11 @@ export class HandleVoteResult extends Task {
 		await originalMessage.edit({
 			embeds: [
 				EmbedBuilder.from(originalMessage.embeds[0])
-					.setColor(action === FinalAction.Ignore ? 'Yellow' : action === FinalAction.Kick ? 'Green' : 'Red')
+					.setColor(
+						action === FinalAction.Ignore ? 'Yellow'
+						: action === FinalAction.Kick ? 'Green'
+						: 'Red',
+					)
 					.setDescription(
 						[
 							`The vote to kick **${await fetchReadableUser(vote.user_to_kick)}** ended!`,
@@ -115,11 +128,15 @@ export class HandleVoteResult extends Task {
 							vote.reason ? '' : undefined,
 							`The result is: **${actionToResult[action]}**!`,
 						]
-							.filter((t) => t !== undefined)
+							.filter((str) => str !== undefined)
 							.join('\n'),
 					)
 					.setFields(
-						{ name: 'Members agreeing with vote', value: String(vote.voters_agreeing_with_kick.length), inline: true },
+						{
+							name: 'Members agreeing with vote',
+							value: String(vote.voters_agreeing_with_kick.length),
+							inline: true,
+						},
 						{
 							name: 'Members disagreeing with vote',
 							value: String(vote.voters_disagreeing_with_kick.length),
@@ -197,9 +214,3 @@ export class HandleVoteResult extends Task {
 		});
 	}
 }
-
-const parseMessageUrl = memoize(function parseMessageUrl(url: string) {
-	const [_https, _, _domain, _path, guildId, channelId, messageId] = url.split('/');
-
-	return { guildId, channelId, messageId };
-});

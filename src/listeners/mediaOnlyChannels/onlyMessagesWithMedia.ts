@@ -1,8 +1,8 @@
+import { setTimeout } from 'node:timers/promises';
 import { ApplyOptions } from '@sapphire/decorators';
 import { Events, Listener } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
 import type { Message } from 'discord.js';
-import { setTimeout } from 'node:timers/promises';
 import { isMediaOnlyChannel } from '../../lib/utils/caches/mediaOnlyCache.js';
 
 @ApplyOptions<Listener.Options>({

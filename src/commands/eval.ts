@@ -1,9 +1,10 @@
-import { Args, Command } from '@sapphire/framework';
+import { inspect } from 'node:util';
+import type { Args } from '@sapphire/framework';
+import { Command } from '@sapphire/framework';
 import { Stopwatch } from '@sapphire/stopwatch';
 import { Type } from '@sapphire/type';
 import { codeBlock, isThenable } from '@sapphire/utilities';
 import type { Message } from 'discord.js';
-import { inspect } from 'util';
 
 export class ClientCommand extends Command {
 	public override async messageRun(message: Message, args: Args) {
@@ -17,7 +18,7 @@ export class ClientCommand extends Command {
 		return message.channel.send(
 			(success ? '**Output**:{output}\n**Type**:{type}\n{time}' : '**Error**:{output}\n**Type**:{type}\n{time}')
 				.replace('{output}', codeBlock('js', result))
-				.replace('{type}', codeBlock('ts', type))
+				.replace('{type}', codeBlock('ts', type.toString()))
 				.replace('{time}', time),
 		);
 	}
@@ -25,15 +26,15 @@ export class ClientCommand extends Command {
 	// Eval the input
 	private async eval(message: Message, code: string) {
 		const stopwatch = new Stopwatch();
-		let success: boolean | undefined = undefined;
-		let syncTime: string | undefined = undefined;
-		let asyncTime: string | undefined = undefined;
-		let result: unknown | undefined = undefined;
+		let success: boolean | undefined;
+		let syncTime: string | undefined;
+		let asyncTime: string | undefined;
+		let result: unknown | undefined;
 		let thenable = false;
-		let type: Type | undefined = undefined;
+		let type: Type | undefined;
 		try {
 			// @ts-expect-error 6133
-			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 			const msg = message;
 			// eslint-disable-next-line no-eval
 			result = eval(code);
@@ -42,9 +43,10 @@ export class ClientCommand extends Command {
 			if (isThenable(result)) {
 				thenable = true;
 				stopwatch.restart();
-				result = await result;
+				result = await (result as Promise<unknown>);
 				asyncTime = stopwatch.toString();
 			}
+
 			success = true;
 		} catch (error) {
 			if (!syncTime) syncTime = stopwatch.toString();
@@ -58,6 +60,7 @@ export class ClientCommand extends Command {
 		if (typeof result !== 'string') {
 			result = result instanceof Error ? result.stack : inspect(result, { depth: 0 });
 		}
+
 		return { success, type: type!, time: this.formatTime(syncTime!, asyncTime ?? ''), result: result as string };
 	}
 

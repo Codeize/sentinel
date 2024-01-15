@@ -18,12 +18,12 @@ dist/
 
 # Ignore JavaScript files
 **/*.js
-**/*.mjs
 !scripts/*.mjs
 **/*.js.map
 **/*.d.ts
 !src/**/*.d.ts
 **/*.tsbuildinfo
+!eslint.config.js
 
 # Ignore the config file (contains sensitive information such as tokens)
 config.ts

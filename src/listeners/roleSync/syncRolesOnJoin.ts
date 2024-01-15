@@ -18,7 +18,7 @@ export class SyncRolesOnJoin extends Listener {
 				continue;
 			}
 
-			const maybeOriginMember = await Result.fromAsync(() => originGuild.members.fetch(member.id));
+			const maybeOriginMember = await Result.fromAsync(async () => originGuild.members.fetch(member.id));
 
 			await maybeOriginMember.inspectAsync(async (originMember) => {
 				if (originMember.roles.cache.has(originRole.id)) {
@@ -31,8 +31,8 @@ export class SyncRolesOnJoin extends Listener {
 							entry.destination_role_id,
 							`Role sync: adding role as the member has it on the ${originGuild.name} server.`,
 						);
-					} catch (err) {
-						this.container.logger.warn(`[ROLE SYNC] Failed to process role sync`, err);
+					} catch (error) {
+						this.container.logger.warn(`[ROLE SYNC] Failed to process role sync`, error);
 					}
 				}
 			});

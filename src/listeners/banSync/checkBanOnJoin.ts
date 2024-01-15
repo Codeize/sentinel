@@ -35,7 +35,9 @@ export class CheckBanOnJoin extends Listener {
 		});
 
 		if (!banInfo) {
-			this.container.logger.info(`${header}  User ${member.user.tag} (${member.user.id}) is not banned anywhere!`);
+			this.container.logger.info(
+				`${header}  User ${member.user.tag} (${member.user.id}) is not banned anywhere!`,
+			);
 			return;
 		}
 

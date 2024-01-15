@@ -1,3 +1,4 @@
+import process from 'node:process';
 import { Task } from '../../lib/schedule/tasks/Task.js';
 
 export class CheckPendingKickResets extends Task {

@@ -1,10 +1,18 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import { ApplyOptions } from '@sapphire/decorators';
-import { Listener, ListenerOptions } from '@sapphire/framework';
-import { EmbedBuilder, TextChannel, VoiceState } from 'discord.js';
+import { Listener } from '@sapphire/framework';
+import type { TextChannel, VoiceState } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import memoize from 'lodash.memoize';
-import { setTimeout as sleep } from 'timers/promises';
 
-@ApplyOptions<ListenerOptions>({ event: 'voiceStateUpdate' })
+// for some stupid reason I cannot export it from the other file >.>
+const parseMessageUrl = memoize((url: string) => {
+	const [_https, _, _domain, _path, guildId, channelId, messageId] = url.split('/');
+
+	return { guildId, channelId, messageId };
+});
+
+@ApplyOptions<Listener.Options>({ event: 'voiceStateUpdate' })
 export default class extends Listener {
 	public async run(oldState: VoiceState, newState: VoiceState) {
 		// If the member wasn't in a voice channel before, ignore
@@ -34,9 +42,16 @@ export default class extends Listener {
 		if (votes.length) {
 			const results = (
 				await this.container.prisma.$transaction(
+					// eslint-disable-next-line @typescript-eslint/promise-function-async
 					votes.map(() =>
 						this.container.prisma.$queryRawUnsafe<
-							[{ voters_agreeing_with_kick: string[]; voters_disagreeing_with_kick: string[]; message_url: string }]
+							[
+								{
+									message_url: string;
+									voters_agreeing_with_kick: string[];
+									voters_disagreeing_with_kick: string[];
+								},
+							]
 						>(
 							`update vote_kick set voters_agreeing_with_kick = array_remove(voters_agreeing_with_kick, $1), voters_disagreeing_with_kick = array_remove(voters_disagreeing_with_kick, $1) returning voters_agreeing_with_kick, voters_disagreeing_with_kick, message_url;`,
 							oldState.id,
@@ -54,7 +69,11 @@ export default class extends Listener {
 				await message.edit({
 					embeds: [
 						EmbedBuilder.from(message.embeds[0]).setFields(
-							{ name: 'Members agreeing with vote', value: String(voters_agreeing_with_kick.length), inline: true },
+							{
+								name: 'Members agreeing with vote',
+								value: String(voters_agreeing_with_kick.length),
+								inline: true,
+							},
 							{
 								name: 'Members disagreeing with vote',
 								value: String(voters_disagreeing_with_kick.length),
@@ -67,10 +86,3 @@ export default class extends Listener {
 		}
 	}
 }
-
-// for some stupid reason I cannot export it from the other file >.>
-const parseMessageUrl = memoize(function parseMessageUrl(url: string) {
-	const [_https, _, _domain, _path, guildId, channelId, messageId] = url.split('/');
-
-	return { guildId, channelId, messageId };
-});

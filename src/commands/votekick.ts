@@ -1,19 +1,12 @@
+import process from 'node:process';
 import { time } from '@discordjs/builders';
 import { Command } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
-import {
-	ActionRowBuilder,
-	ButtonBuilder,
-	ButtonStyle,
-	ChatInputCommandInteraction,
-	EmbedBuilder,
-	GuildMember,
-	Message,
-	VoiceChannel,
-} from 'discord.js';
+import type { ChatInputCommandInteraction, GuildMember, Message, VoiceChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { UserError } from '../lib/extensions/UserError.js';
-import { getMemberFromInteraction } from '../lib/utils.js';
 import { announceAlreadyStartedVoteKick, createVoteKick } from '../lib/utils/votekick.js';
+import { getMemberFromInteraction } from '../lib/utils.js';
 
 const cooldowns = new Map<string, { expiresAt: number }>();
 
@@ -28,7 +21,9 @@ export class VoteKick extends Command {
 		await message.channel.send({
 			content: 'VOTE_COMMAND_CANNOT_RUN_OUTSIDE_GUILD_MESSAGE',
 			embeds: [
-				new EmbedBuilder().setColor('Red').setDescription('Cannot run this command outside of a guild channel!'),
+				new EmbedBuilder()
+					.setColor('Red')
+					.setDescription('Cannot run this command outside of a guild channel!'),
 			],
 		});
 
@@ -48,7 +43,9 @@ export class VoteKick extends Command {
 		await message.channel.send({
 			content: 'VOTE_COMMAND_CHANNEL_LIMIT_IS_TOO_SMALL_MESSAGE',
 			embeds: [
-				new EmbedBuilder().setColor('Red').setDescription('You cannot run this command in such a small voice channel!'),
+				new EmbedBuilder()
+					.setColor('Red')
+					.setDescription('You cannot run this command in such a small voice channel!'),
 			],
 		});
 
@@ -67,7 +64,9 @@ export class VoteKick extends Command {
 		// commands/votekick.ts, m:slashCommand, l:257
 		await message.channel.send({
 			content: 'VOTE_COMMAND_USER_TO_KICK_IS_NOT_IN_VOICE_CHANNEL_MESSAGE',
-			embeds: [new EmbedBuilder().setColor('Red').setDescription("That user is not in the voice channel you're in!")],
+			embeds: [
+				new EmbedBuilder().setColor('Red').setDescription("That user is not in the voice channel you're in!"),
+			],
 		});
 
 		// User cannot kick themselves
@@ -77,7 +76,9 @@ export class VoteKick extends Command {
 			embeds: [
 				new EmbedBuilder()
 					.setColor('Red')
-					.setDescription('You cannot start a vote kick for yourself! Just press the disconnect button instead.'),
+					.setDescription(
+						'You cannot start a vote kick for yourself! Just press the disconnect button instead.',
+					),
 			],
 		});
 

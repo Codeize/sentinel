@@ -1,12 +1,14 @@
+import { setInterval } from 'node:timers';
 import { ApplyOptions } from '@sapphire/decorators';
 import { container, Events, Listener } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
 import { PermissionFlagsBits, RESTJSONErrorCodes } from 'discord-api-types/v10';
-import { DiscordAPIError, GuildBan } from 'discord.js';
+import type { GuildBan } from 'discord.js';
+import { DiscordAPIError } from 'discord.js';
 import { useGuildIdsToSyncBansIn } from '../../lib/utils/hooks/useGuildIdsToSyncBansIn.js';
 
-const recentlySeenBanEvents = new Map<string, { userId: string; at: number }>();
-const recentlySeenUnbanEvents = new Map<string, { userId: string; at: number }>();
+const recentlySeenBanEvents = new Map<string, { at: number; userId: string }>();
+const recentlySeenUnbanEvents = new Map<string, { at: number; userId: string }>();
 const header = '[BAN SYNC] ';
 
 setInterval(() => {
@@ -130,15 +132,15 @@ export class BanRemoveChecker extends Listener<typeof Events.GuildBanRemove> {
 				this.container.logger.info(
 					`${header}  Removed ban from user ${ban.user.tag} (${ban.user.id}) in guild ${guild.name} (${guild.id})`,
 				);
-			} catch (err) {
-				if (err instanceof DiscordAPIError) {
-					if (err.code === RESTJSONErrorCodes.UnknownBan) {
+			} catch (error) {
+				if (error instanceof DiscordAPIError) {
+					if (error.code === RESTJSONErrorCodes.UnknownBan) {
 						continue;
 					}
 
 					this.container.logger.warn(
 						`${header}  Failed to remove ban from user ${ban.user.tag} (${ban.user.id}) in guild ${guild.name} (${guild.id})`,
-						err,
+						error,
 					);
 				}
 			}

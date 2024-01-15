@@ -1,15 +1,15 @@
 /* eslint-disable no-multi-assign */
 import { container } from '@sapphire/framework';
 import { Cron, TimerManager } from '@sapphire/time-utilities';
-import type { UtilsBot } from '../UtilsBot';
-import { ResponseType, ResponseValue, ScheduleEntity } from './ScheduleEntity.js';
+import type { UtilsBot } from '../UtilsBot.js';
+import { ResponseType, type ResponseValue, ScheduleEntity } from './ScheduleEntity.js';
 
 export class ScheduleManager {
 	public readonly client: UtilsBot;
+
 	public queue: ScheduleEntity[] = [];
 
-	// eslint-disable-next-line @typescript-eslint/explicit-member-accessibility
-	#interval: NodeJS.Timer | null = null;
+	#interval: NodeJS.Timeout | null = null;
 
 	public constructor(client: UtilsBot) {
 		this.client = client;
@@ -27,7 +27,7 @@ export class ScheduleManager {
 
 		const [time, cron] = this.resolveTime(timeResolvable);
 
-		const d = await container.prisma.schedule.create({
+		const newData = await container.prisma.schedule.create({
 			data: {
 				task_id: taskId,
 				time,
@@ -36,7 +36,7 @@ export class ScheduleManager {
 			},
 		});
 
-		const entry = new ScheduleEntity(d);
+		const entry = new ScheduleEntity(newData);
 
 		this.insertInQueue(entry.setup(this).resume());
 		this.checkInterval();
@@ -44,15 +44,17 @@ export class ScheduleManager {
 	}
 
 	public async remove(entityOrID: ScheduleEntity | number) {
-		if (typeof entityOrID === 'number') {
-			entityOrID = this.queue.find((entity) => entity.id === entityOrID)!;
-			if (!entityOrID) return false;
+		let actualEntityOrID = entityOrID;
+
+		if (typeof actualEntityOrID === 'number') {
+			actualEntityOrID = this.queue.find((entity) => entity.id === actualEntityOrID)!;
+			if (!actualEntityOrID) return false;
 		}
 
-		entityOrID.pause();
-		await container.prisma.schedule.delete({ where: { id: entityOrID.id } });
+		actualEntityOrID.pause();
+		await container.prisma.schedule.delete({ where: { id: actualEntityOrID.id } });
 
-		this.removeFromQueue(entityOrID);
+		this.removeFromQueue(actualEntityOrID);
 		this.checkInterval();
 		return true;
 	}
@@ -70,6 +72,7 @@ export class ScheduleManager {
 					);
 					entry.resume();
 				}
+
 				execute.push(entry.run());
 			}
 
@@ -78,6 +81,7 @@ export class ScheduleManager {
 				this.checkInterval();
 				return;
 			}
+
 			await this.handleResponses(await Promise.all(execute));
 		}
 
@@ -100,18 +104,24 @@ export class ScheduleManager {
 						await em.update({ where: { id: response.entry.id }, data: { time } });
 						continue;
 					}
+
 					case ResponseType.Finished: {
 						removed.push(response.entry);
 						try {
 							await em.delete({ where: { id: response.entry.id } });
-						} catch (err) {
-							container.logger.warn(`Failed to delete schedule entry ${response.entry.id}, possibly deleted already.`);
+						} catch {
+							container.logger.warn(
+								`Failed to delete schedule entry ${response.entry.id}, possibly deleted already.`,
+							);
 						}
+
 						continue;
 					}
+
 					case ResponseType.Ignore: {
 						continue;
 					}
+
 					case ResponseType.Update: {
 						const time = (response.entry.time = response.value);
 						updated.push(response.entry);
@@ -128,7 +138,7 @@ export class ScheduleManager {
 
 			// - Update indexes
 			for (const entry of updated) {
-				const index = this.queue.findIndex((entity) => entity === entry);
+				const index = this.queue.indexOf(entry);
 				if (index === -1) continue;
 
 				this.queue.splice(index, 1);
@@ -151,7 +161,7 @@ export class ScheduleManager {
 	}
 
 	private removeFromQueue(entity: ScheduleEntity) {
-		const index = this.queue.findIndex((entry) => entry === entity);
+		const index = this.queue.indexOf(entity);
 		if (index !== -1) this.queue.splice(index, 1);
 	}
 
@@ -171,11 +181,12 @@ export class ScheduleManager {
 	private checkInterval(): void {
 		if (!this.queue.length) this.clearInterval();
 		else if (this.#interval) this.#interval.refresh();
-		else this.#interval = TimerManager.setTimeout(this.execute.bind(this), 1000);
+		else this.#interval = TimerManager.setTimeout(this.execute.bind(this), 1_000);
 	}
 
 	/**
 	 * Resolve the time and cron
+	 *
 	 * @param time The time or Cron pattern
 	 */
 	private resolveTime(time: TimeResolvable): [Date, Cron | null] {
@@ -186,8 +197,9 @@ export class ScheduleManager {
 			const cron = new Cron(time);
 			return [cron.next(), cron];
 		}
+
 		throw new Error('invalid time passed');
 	}
 }
 
-export type TimeResolvable = number | Date | string | Cron;
+export type TimeResolvable = Cron | Date | number | string;

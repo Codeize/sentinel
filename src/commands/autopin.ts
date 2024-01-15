@@ -1,12 +1,13 @@
-import type { Prisma } from '@prisma/client';
+import { Buffer } from 'node:buffer';
 import { inlineCode, time } from '@discordjs/builders';
+import type { Prisma } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
-import { Subcommand, SubcommandMappingArray } from '@sapphire/plugin-subcommands';
+import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { Duration, Time } from '@sapphire/time-utilities';
 import { ChannelType, PermissionFlagsBits } from 'discord-api-types/v10';
-import { AttachmentBuilder, GuildTextBasedChannel } from 'discord.js';
-import { durationFormat } from '../lib/utils.js';
+import { AttachmentBuilder, type GuildTextBasedChannel } from 'discord.js';
 import { createInfoEmbed } from '../lib/utils/createInfoEmbed.js';
+import { durationFormat } from '../lib/utils.js';
 
 @ApplyOptions<Subcommand.Options>({
 	description: 'Manages messages that should be kept at the bottom of a channel',
@@ -70,14 +71,17 @@ export class AutoPinCommand extends Subcommand {
 		}
 
 		// Get the seconds
-		const checkEveryOffset = new Duration(isNaN(Number(rawCheckEvery)) ? rawCheckEvery : `${rawCheckEvery} minutes`)
-			.offset;
+		const checkEveryOffset = new Duration(
+			Number.isNaN(Number(rawCheckEvery)) ? rawCheckEvery : `${rawCheckEvery} minutes`,
+		).offset;
 
-		if (isNaN(checkEveryOffset)) {
+		if (Number.isNaN(checkEveryOffset)) {
 			await interaction.reply({
 				ephemeral: true,
 				embeds: [
-					createInfoEmbed(`The time interval you entered does not seem to be valid. Try something like "15 minutes"!`),
+					createInfoEmbed(
+						`The time interval you entered does not seem to be valid. Try something like "15 minutes"!`,
+					),
 				],
 			});
 
@@ -133,7 +137,11 @@ export class AutoPinCommand extends Subcommand {
 
 		const fields = [
 			{ name: 'Channel its checked in', value: `<#${entry.channel_id}> (${entry.channel_id})`, inline: true },
-			{ name: 'Check every', value: durationFormat.format(Number(entry.check_every_seconds) * 1000), inline: true },
+			{
+				name: 'Check every',
+				value: durationFormat.format(Number(entry.check_every_seconds) * 1_000),
+				inline: true,
+			},
 		];
 
 		if (entry.button_link) {
@@ -172,7 +180,7 @@ export class AutoPinCommand extends Subcommand {
 		const listOfIds = autoPins.map(
 			(autoPin) =>
 				`- ${inlineCode(autoPin.id)} - <#${autoPin.channel_id}> (${autoPin.channel_id})\n└─ Next check: ${time(
-					new Date(autoPin.last_check.getTime() + Number(autoPin.check_every_seconds * 1000n)),
+					new Date(autoPin.last_check.getTime() + Number(autoPin.check_every_seconds * 1_000n)),
 					'R',
 				)}`,
 		);
@@ -208,8 +216,12 @@ export class AutoPinCommand extends Subcommand {
 					[`Content for auto-pinned message ${inlineCode(entry.id)}`, '', entry.content].join('\n'),
 				).addFields([
 					{ name: 'ID', value: inlineCode(entry.id), inline: true },
-					{ name: 'Channel its checked in', value: `<#${entry.channel_id}> (${entry.channel_id})`, inline: true },
-					{ name: 'Check every', value: durationFormat.format(Number(entry.check_every_seconds) * 1000) },
+					{
+						name: 'Channel its checked in',
+						value: `<#${entry.channel_id}> (${entry.channel_id})`,
+						inline: true,
+					},
+					{ name: 'Check every', value: durationFormat.format(Number(entry.check_every_seconds) * 1_000) },
 				]),
 			],
 		});
@@ -243,25 +255,33 @@ export class AutoPinCommand extends Subcommand {
 						.addStringOption((content) =>
 							content
 								.setName('content')
-								.setDescription('The message to send in the channel (for now use {newline} for new lines)')
+								.setDescription(
+									'The message to send in the channel (for now use {newline} for new lines)',
+								)
 								.setRequired(true),
 						)
 						.addStringOption((checkEvery) =>
 							checkEvery
 								.setName('check_every')
-								.setDescription('How often should the channel be checked to repost the message (ex.: 1 hour 5 minutes)')
+								.setDescription(
+									'How often should the channel be checked to repost the message (ex.: 1 hour 5 minutes)',
+								)
 								.setRequired(true),
 						)
 						.addStringOption((buttonLink) =>
 							buttonLink
 								.setName('button_link')
-								.setDescription('If you want the message to have a link button, enter the link it should go to')
+								.setDescription(
+									'If you want the message to have a link button, enter the link it should go to',
+								)
 								.setRequired(false),
 						)
 						.addStringOption((buttonLabel) =>
 							buttonLabel
 								.setName('button_label')
-								.setDescription('If you want the message to have a link button, enter the label it should have')
+								.setDescription(
+									'If you want the message to have a link button, enter the label it should have',
+								)
 								.setRequired(false),
 						),
 				)
@@ -270,7 +290,10 @@ export class AutoPinCommand extends Subcommand {
 						.setName('delete')
 						.setDescription('Deletes an auto-pinned message')
 						.addStringOption((id) =>
-							id.setName('id').setDescription('The id of the auto-pinned message to delete').setRequired(true),
+							id
+								.setName('id')
+								.setDescription('The id of the auto-pinned message to delete')
+								.setRequired(true),
 						),
 				)
 				.addSubcommand((list) =>
@@ -281,7 +304,10 @@ export class AutoPinCommand extends Subcommand {
 						.setName('show')
 						.setDescription('Shows the content for an auto-pinned message')
 						.addStringOption((id) =>
-							id.setName('id').setDescription('The id of the auto-pinned message to show').setRequired(true),
+							id
+								.setName('id')
+								.setDescription('The id of the auto-pinned message to show')
+								.setRequired(true),
 						),
 				),
 		);

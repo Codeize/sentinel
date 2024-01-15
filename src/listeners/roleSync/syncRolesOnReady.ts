@@ -1,6 +1,7 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { Events, Listener } from '@sapphire/framework';
-import { Collection, Guild, GuildMember } from 'discord.js';
+import type { Guild, GuildMember } from 'discord.js';
+import { Collection } from 'discord.js';
 
 const header = '[ROLE SYNC] ';
 
@@ -70,10 +71,10 @@ export class SyncRolesOnReady extends Listener {
 								entry.destination_role_id,
 								`Role sync: adding role as they have it in ${guild.name}`,
 							);
-						} catch (err) {
+						} catch (error) {
 							this.container.logger.warn(
 								`${header}  Failed to add role ${entry.destination_role_id} to ${destinationMember.user.tag}`,
-								err,
+								error,
 							);
 						}
 					} else {
@@ -82,10 +83,10 @@ export class SyncRolesOnReady extends Listener {
 								entry.destination_role_id,
 								`Role sync: removing role as they do not have it in ${guild.name}`,
 							);
-						} catch (err) {
+						} catch (error) {
 							this.container.logger.warn(
 								`${header}  Failed to remove role ${entry.destination_role_id} from ${destinationMember.user.tag}`,
-								err,
+								error,
 							);
 						}
 					}

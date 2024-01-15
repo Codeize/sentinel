@@ -40,7 +40,7 @@ export class LoadBansOnReady extends Listener {
 				const banChunk = [
 					...(
 						await guild.bans.fetch({
-							limit: 1000,
+							limit: 1_000,
 							after,
 							cache: false,
 						})
@@ -64,7 +64,7 @@ export class LoadBansOnReady extends Listener {
 					}
 				}
 
-				if (banChunk.length < 1000) {
+				if (banChunk.length < 1_000) {
 					this.container.logger.info(`${header}  Fetched all bans for guild ${guild.name} (${guild.id})`);
 					break;
 				}
@@ -83,7 +83,9 @@ export class LoadBansOnReady extends Listener {
 			});
 		}
 
-		this.container.logger.info(`${header}Saved bans to the database. Now checking if any bans have not been synced...`);
+		this.container.logger.info(
+			`${header}Saved bans to the database. Now checking if any bans have not been synced...`,
+		);
 
 		for (const guildId of guildIds) {
 			const guild = this.container.client.guilds.resolve(guildId);
