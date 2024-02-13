@@ -58,7 +58,16 @@ export class TitanUnsubscribe extends Listener<typeof Events.GuildMemberUpdate> 
 			const giftedUser = await newMember.guild.members.fetch(titanMember.giftedRoleToUserId).catch(() => null);
 
 			if (giftedUser) {
-				await giftedUser.roles.remove(guildConfig.giftableRoleId, 'Original Titan lost Titan role');
+				try {
+					await giftedUser.roles.remove(guildConfig.giftableRoleId, 'Original Titan lost Titan role');
+				} catch (error) {
+					this.container.logger.error(`[TITAN] Failed to remove gifted role`, {
+						userId: giftedUser.id,
+						guildId: newMember.guild.id,
+						giftedBy: newMember.id,
+						error,
+					});
+				}
 			}
 		}
 

@@ -18,7 +18,7 @@ export class TitanRoleDeleteListener extends Listener<typeof Events.GuildRoleDel
 		// If members have given the role out, but it was deleted, nuke that data
 		await this.container.prisma.titanMember.updateMany({
 			where: { guildId: role.guild.id, customRoleId: role.id },
-			data: { giftedRoleToUserId: null, customRoleId: null },
+			data: { customRoleId: null },
 		});
 
 		const config = await this.container.prisma.titanGuildRoleConfig.findFirst({
