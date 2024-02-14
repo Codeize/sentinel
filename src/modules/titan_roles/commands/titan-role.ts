@@ -482,7 +482,7 @@ export class TitanRoleCommand extends Subcommand {
 			return null;
 		}
 
-		this.container.logger.debug(`[TITAN] Trying to resolve icon for custom Titan role`, { url });
+		this.container.logger.info(`[TITAN] Trying to resolve icon for custom Titan role`, { url });
 
 		let res: Response;
 
@@ -516,6 +516,8 @@ export class TitanRoleCommand extends Subcommand {
 		if (exts.includes('png') || exts.includes('jpg') || exts.includes('jpeg')) {
 			return uint8;
 		}
+
+		this.container.logger.info(`[TITAN] Invalid icon format for custom Titan role`, { url, exts });
 
 		return null;
 	}
