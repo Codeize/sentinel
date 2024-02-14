@@ -20,6 +20,10 @@ export class ToggleRankCommand extends Command {
 	}
 
 	public override async chatInputRun(interaction: Command.ChatInputCommandInteraction<'cached'>) {
+		await interaction.deferReply({
+			ephemeral: true,
+		});
+
 		const memberData = await this.container.prisma.guildMember.findUnique({
 			where: { userId_guildId: { guildId: interaction.guildId, userId: interaction.user.id } },
 		});
@@ -66,9 +70,8 @@ export class ToggleRankCommand extends Command {
 			}
 		}
 
-		await interaction.reply({
+		await interaction.editReply({
 			embeds: [createInfoEmbed('Toggled the visibility of your rank role.')],
-			ephemeral: true,
 		});
 	}
 
