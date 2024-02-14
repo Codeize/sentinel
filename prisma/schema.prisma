@@ -212,6 +212,9 @@ model TitanGuildRoleConfig {
   /// The roles whose colors should be checked for custom titan roles so that the color is not too similar
   staffRoles String[]
 
+  /// The role to use as starting position for the custom titan roles, with a fallback to the original titan role
+  startingPositionRoleId String?
+
   @@map("titan_guild_role_configs")
 }
 

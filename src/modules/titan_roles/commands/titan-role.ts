@@ -59,8 +59,9 @@ export class TitanRoleCommand extends Subcommand {
 		});
 
 		const titanRole = interaction.guild.roles.cache.get(guildConfig.originalTitanRoleId) ?? null;
+		const positionRole = interaction.guild.roles.cache.get(guildConfig.startingPositionRoleId!) ?? null;
 		const oldRole = interaction.guild.roles.cache.get(titanMember?.customRoleId ?? '') ?? null;
-		const position = (titanRole?.position ?? 0) + 1;
+		const position = (positionRole?.position ?? titanRole?.position ?? 0) + 1;
 
 		const name = interaction.options.getString('name');
 		const rawColor = interaction.options.getString('color');

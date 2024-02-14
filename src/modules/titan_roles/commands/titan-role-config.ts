@@ -20,6 +20,11 @@ export class TitanRoleConfigCommand extends Subcommand {
 			chatInputRun: 'setGiftableRoleSubcommand',
 		},
 		{
+			type: 'method',
+			name: 'set-position-role',
+			chatInputRun: 'setPositionRoleSubcommand',
+		},
+		{
 			type: 'group',
 			name: 'staff-roles',
 			entries: [
@@ -192,6 +197,66 @@ export class TitanRoleConfigCommand extends Subcommand {
 		});
 	}
 
+	public async setPositionRoleSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const role = interaction.options.getRole('role', false);
+		const me = await interaction.guild.members.fetch(this.container.client.user!.id);
+
+		if (role && me.roles.highest.position <= role.position) {
+			await interaction.reply({
+				ephemeral: true,
+				embeds: [
+					createInfoEmbed(
+						`I do not have permission create roles above ${role} in this server as its above my highest role.`,
+					),
+				],
+			});
+
+			return;
+		}
+
+		const existingTitanConfig = await this.container.prisma.titanGuildRoleConfig.findFirst({
+			where: { guildId: interaction.guildId },
+		});
+
+		if (existingTitanConfig) {
+			const previousRole =
+				existingTitanConfig.startingPositionRoleId ?
+					interaction.guild.roles.resolve(existingTitanConfig.startingPositionRoleId)
+				:	null;
+
+			const previousRoleRepresentation =
+				previousRole ? `<@&${previousRole.id}> (${previousRole.id})` : 'the titan role (if configured)';
+			const newRoleRepresentation = role ? `<@&${role.id}> (${role.id})` : 'the titan role (if configured)';
+
+			await this.container.prisma.titanGuildRoleConfig.update({
+				where: { guildId: interaction.guildId },
+				data: { startingPositionRoleId: role?.id ?? null },
+			});
+
+			await interaction.reply({
+				embeds: [
+					createInfoEmbed(
+						`Set the starting position role in this server from ${previousRoleRepresentation} to ${newRoleRepresentation}`,
+					),
+				],
+				ephemeral: true,
+			});
+
+			return;
+		}
+
+		await this.container.prisma.titanGuildRoleConfig.create({
+			data: { guildId: interaction.guildId, startingPositionRoleId: role?.id ?? null },
+		});
+
+		const newRoleRepresentation = role ? `<@&${role.id}> (${role.id})` : 'the titan role (if configured)';
+
+		await interaction.reply({
+			embeds: [createInfoEmbed(`Set the starting position role in this server to ${newRoleRepresentation}`)],
+			ephemeral: true,
+		});
+	}
+
 	public async addStaffRoleSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		const role = interaction.options.getRole('role', true);
 
@@ -309,6 +374,18 @@ export class TitanRoleConfigCommand extends Subcommand {
 							role
 								.setName('role')
 								.setDescription('The giftable role (leave empty to reset/disable the feature)'),
+						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('set-position-role')
+						.setDescription(
+							'Sets the role that should be used as a starting position for custom Titan roles for this server',
+						)
+						.addRoleOption((role) =>
+							role
+								.setName('role')
+								.setDescription('The position role (leave empty to reset/use the titan role)'),
 						),
 				)
 				.addSubcommandGroup((role) =>
