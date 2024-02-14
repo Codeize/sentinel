@@ -14,7 +14,7 @@ A simple slash command based bot that hosts some utilities, mainly:
 1. Clone this repository
 1. Run `npm ci` to install all dependencies
 1. Copy the `.env.example` file to `.env` and fill in everything above the comment. You can see examples of the values pre-filled in the file.
-1. Run `npx prisma db push` to generate missing tables and push any schema changes if applicable.
+1. Run `npx prisma migrate deploy` to generate missing tables and push any schema changes if applicable.
 1. Once you're done, run `npm run cleanbuild` to build the source code.
 1. Start the bot by running `node dist/main.js` (or pm2 if you want)
 
@@ -22,7 +22,7 @@ A simple slash command based bot that hosts some utilities, mainly:
 
 1. Pull in the changes
 1. Run `npm ci` to install/update all dependencies for safety
-1. Run `npx prisma db push` to push any schema changes if applicable.
+1. Run `npx prisma migrate deploy` to push any schema changes if applicable.
 1. Run `npm run cleanbuild` to build the source code
 1. Double check that `.env.sample` has the same values as `.env`, and update `.env` if you see any differences.
 1. Restart the bot.
