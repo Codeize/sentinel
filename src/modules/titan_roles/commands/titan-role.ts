@@ -361,7 +361,11 @@ export class TitanRoleCommand extends Subcommand {
 			});
 
 			await interaction.reply({
-				embeds: [createInfoEmbed(`You have successfully gifted a Legend Subscription to ${user.toString()}.`)],
+				embeds: [
+					createInfoEmbed(
+						`You have successfully gifted a Legend Subscription to ${user.toString()}.\n\nUse the command again to switch the Legend role to a different user. You can only gift one Legend role at a time.`,
+					),
+				],
 				ephemeral: true,
 			});
 
