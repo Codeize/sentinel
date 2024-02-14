@@ -91,6 +91,16 @@ model User {
   @@map("user")
 }
 
+model GuildMember {
+  userId  String
+  guildId String
+
+  syncVisibleRanks Boolean @default(false)
+
+  @@id([userId, guildId])
+  @@map("guild_member")
+}
+
 // Polls! //
 
 model Poll {

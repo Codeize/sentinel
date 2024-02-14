@@ -20,6 +20,18 @@ export class ToggleRankCommand extends Command {
 	}
 
 	public override async chatInputRun(interaction: Command.ChatInputCommandInteraction<'cached'>) {
+		const memberData = await this.container.prisma.guildMember.findUnique({
+			where: { userId_guildId: { guildId: interaction.guildId, userId: interaction.user.id } },
+		});
+
+		const newState = !memberData?.syncVisibleRanks;
+
+		await this.container.prisma.guildMember.upsert({
+			where: { userId_guildId: { guildId: interaction.guildId, userId: interaction.user.id } },
+			update: { syncVisibleRanks: newState },
+			create: { userId: interaction.user.id, guildId: interaction.guildId, syncVisibleRanks: newState },
+		});
+
 		// Find all roles that can be synced
 		const roles = await this.container.prisma.roleSync.findMany({
 			where: {
@@ -31,20 +43,18 @@ export class ToggleRankCommand extends Command {
 		const member = await interaction.guild.members.fetch(interaction.user.id);
 
 		for (const { origin_role_id: mainRankRole, destination_role_id: visibleRankRole } of roles) {
-			const hasRole = member.roles.cache.has(mainRankRole);
+			const hasMainRole = member.roles.cache.has(mainRankRole);
 			const hasVisibleRole = member.roles.cache.has(visibleRankRole);
 
 			try {
-				// If they have the visible role, we don't care if they lose the main role, just remove it
-				if (hasVisibleRole) {
-					await member.roles.remove(visibleRankRole, 'Rank role visibility toggled');
-					continue;
+				// Toggled visibility on -> just add the role if they have the main role
+				if (newState) {
+					if (hasMainRole && !hasVisibleRole) {
+						await member.roles.add(visibleRankRole, 'Rank role visibility toggled');
+					}
 				}
-
-				// If they have the main role, add the visible role
-				if (hasRole) {
-					await member.roles.add(visibleRankRole, 'Rank role visibility toggled');
-				} else {
+				// Toggled off -> remove the role if they have it
+				else if (hasVisibleRole) {
 					await member.roles.remove(visibleRankRole, 'Rank role visibility toggled');
 				}
 			} catch (error) {
