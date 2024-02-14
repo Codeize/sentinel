@@ -139,7 +139,8 @@ export class TitanRoleCommand extends Subcommand {
 			name: name ?? oldRole?.name,
 			color: color ?? oldRole?.color,
 			hoist: false,
-			position,
+			// Only set position when creating, as this requires moving roles around, which at Valorant's scale means a fuck ton of events sent to everyone :>
+			position: oldRole ? position : undefined,
 			mentionable: false,
 			permissions: [],
 			reason: 'Custom Titan role',
@@ -163,10 +164,18 @@ export class TitanRoleCommand extends Subcommand {
 		try {
 			const newRole = oldRole ? await oldRole.edit(roleData) : await interaction.guild.roles.create(roleData);
 
+			if (!oldRole) {
+				await interaction.member.roles.add(newRole.id, 'Setup custom Titan role');
+			}
+
 			await this.container.prisma.titanMember.upsert({
 				where: { guildId_userId: { guildId: interaction.guildId, userId: interaction.user.id } },
 				update: { customRoleId: newRole.id },
-				create: { guildId: interaction.guildId, userId: interaction.user.id, customRoleId: newRole.id },
+				create: {
+					guildId: interaction.guildId,
+					userId: interaction.user.id,
+					customRoleId: newRole.id,
+				},
 			});
 
 			await interaction.reply({
@@ -473,6 +482,8 @@ export class TitanRoleCommand extends Subcommand {
 			return null;
 		}
 
+		this.container.logger.debug(`[TITAN] Trying to resolve icon for custom Titan role`, { url });
+
 		let res: Response;
 
 		try {
@@ -491,6 +502,7 @@ export class TitanRoleCommand extends Subcommand {
 				url,
 				status: res.status,
 				statusText: res.statusText,
+				text: await res.text(),
 			});
 
 			return null;
