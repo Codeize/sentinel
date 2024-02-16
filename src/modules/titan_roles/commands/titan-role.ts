@@ -153,6 +153,34 @@ export class TitanRoleCommand extends Subcommand {
 			}
 		}
 
+		if (name) {
+			const forbiddenPatterns = await this.container.prisma.forbiddenRoleName.findMany({
+				where: { guildId: interaction.guildId },
+			});
+
+			for (const { processedPattern, rawPattern } of forbiddenPatterns) {
+				const regex = new RegExp(processedPattern, 'i');
+
+				if (regex.test(name)) {
+					this.container.logger.info(`Forbidden role name used`, {
+						userId: interaction.user.id,
+						guildId: interaction.guildId,
+						roleName: name,
+						processedPattern,
+						rawPattern,
+					});
+
+					await interaction.editReply({
+						embeds: [
+							createInfoEmbed('The name you provided is forbidden. Please choose a different name.'),
+						],
+					});
+
+					return;
+				}
+			}
+		}
+
 		const roleData: RoleEditOptions = {
 			name: name ?? oldRole?.name,
 			color: color ?? oldRole?.color,

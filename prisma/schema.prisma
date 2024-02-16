@@ -230,3 +230,12 @@ model TitanMember {
   @@id([guildId, userId])
   @@map("titan_members")
 }
+
+model ForbiddenRoleName {
+  guildId          String
+  rawPattern       String
+  processedPattern String
+
+  @@id([guildId, rawPattern])
+  @@map("forbidden_role_names")
+}

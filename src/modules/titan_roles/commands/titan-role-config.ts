@@ -1,5 +1,6 @@
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
-import { PermissionFlagsBits } from 'discord.js';
+import { remove } from 'confusables';
+import { PermissionFlagsBits, escapeMarkdown } from 'discord.js';
 import { createInfoEmbed } from '../../../lib/utils/createInfoEmbed.js';
 
 export class TitanRoleConfigCommand extends Subcommand {
@@ -39,6 +40,24 @@ export class TitanRoleConfigCommand extends Subcommand {
 				{
 					name: 'show',
 					chatInputRun: 'showStaffRolesSubcommand',
+				},
+			],
+		},
+		{
+			type: 'group',
+			name: 'forbidden-names',
+			entries: [
+				{
+					name: 'add',
+					chatInputRun: 'addForbiddenNameSubcommand',
+				},
+				{
+					name: 'remove',
+					chatInputRun: 'removeForbiddenNameSubcommand',
+				},
+				{
+					name: 'list',
+					chatInputRun: 'listForbiddenNamesSubcommand',
 				},
 			],
 		},
@@ -340,6 +359,95 @@ export class TitanRoleConfigCommand extends Subcommand {
 		});
 	}
 
+	public async addForbiddenNameSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const name = interaction.options.getString('name', true);
+
+		const existingPattern = await this.container.prisma.forbiddenRoleName.findFirst({
+			where: { guildId: interaction.guildId, rawPattern: name },
+		});
+
+		if (existingPattern) {
+			await interaction.reply({
+				embeds: [createInfoEmbed('This pattern is already forbidden in this server!')],
+				ephemeral: true,
+			});
+
+			return;
+		}
+
+		// Patterns baby
+		const pattern = remove(name) //
+			// Replace commonly confused characters with a pattern matching them
+			.replaceAll(/[1il|]/g, '[1il|]')
+			// zeros and o's
+			.replaceAll(/[0o]/g, '[0o]')
+			// Spaces
+			.replaceAll(/\s/g, '\\s+');
+
+		await this.container.prisma.forbiddenRoleName.create({
+			data: { guildId: interaction.guildId, rawPattern: name, processedPattern: pattern },
+		});
+
+		await interaction.reply({
+			embeds: [
+				createInfoEmbed(`Added the pattern \`${name}\` to the list of forbidden patterns in this server!`),
+			],
+			ephemeral: true,
+		});
+	}
+
+	public async removeForbiddenNameSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const name = interaction.options.getString('name', true);
+
+		const existingPattern = await this.container.prisma.forbiddenRoleName.findFirst({
+			where: { guildId: interaction.guildId, rawPattern: name },
+		});
+
+		if (!existingPattern) {
+			await interaction.reply({
+				embeds: [createInfoEmbed('This pattern is not forbidden in this server!')],
+				ephemeral: true,
+			});
+
+			return;
+		}
+
+		await this.container.prisma.forbiddenRoleName.delete({
+			where: { guildId_rawPattern: { guildId: interaction.guildId, rawPattern: name } },
+		});
+
+		await interaction.reply({
+			embeds: [
+				createInfoEmbed(`Removed the pattern \`${name}\` from the list of forbidden patterns in this server!`),
+			],
+			ephemeral: true,
+		});
+	}
+
+	public async listForbiddenNamesSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const patterns = await this.container.prisma.forbiddenRoleName.findMany({
+			where: { guildId: interaction.guildId },
+		});
+
+		if (!patterns.length) {
+			await interaction.reply({
+				embeds: [createInfoEmbed('There are no forbidden patterns in this server!')],
+				ephemeral: true,
+			});
+
+			return;
+		}
+
+		await interaction.reply({
+			embeds: [
+				createInfoEmbed(
+					`**Forbidden Patterns:**\n- ${patterns.map((pattern) => `\`${escapeMarkdown(pattern.rawPattern)}\``).join('\n- ')}`,
+				),
+			],
+			ephemeral: true,
+		});
+	}
+
 	public override registerApplicationCommands(registry: Subcommand.Registry) {
 		registry.registerChatInputCommand((builder) =>
 			builder
@@ -412,6 +520,38 @@ export class TitanRoleConfigCommand extends Subcommand {
 						)
 						.addSubcommand((subcommand) =>
 							subcommand.setName('show').setDescription('Shows the current staff roles in this server'),
+						),
+				)
+				.addSubcommandGroup((role) =>
+					role
+						.setName('forbidden-names')
+						.setDescription('Manage the forbidden names for custom roles in this server')
+						.addSubcommand((subcommand) =>
+							subcommand
+								.setName('add')
+								.setDescription('Adds a forbidden name to the list of forbidden names')
+								.addStringOption((name) =>
+									name
+										.setName('name')
+										.setDescription('The forbidden name to add (supports regular expressions)')
+										.setRequired(true),
+								),
+						)
+						.addSubcommand((subcommand) =>
+							subcommand
+								.setName('remove')
+								.setDescription('Removes a forbidden name from the list of forbidden names')
+								.addStringOption((name) =>
+									name
+										.setName('name')
+										.setDescription('The forbidden name to remove')
+										.setRequired(true),
+								),
+						)
+						.addSubcommand((subcommand) =>
+							subcommand
+								.setName('list')
+								.setDescription('Shows the current forbidden names in this server'),
 						),
 				),
 		);
