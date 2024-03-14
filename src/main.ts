@@ -61,20 +61,13 @@ const client = new UtilsBot({
 			keepOverLimit: (user) => user.id === user.client.user!.id,
 		},
 		GuildMemberManager: {
-			maxSize: 100,
-			keepOverLimit: (member) => member.user.id === member.client.user!.id || Boolean(member.voice.channelId),
+			maxSize: 999_999_999_999_999,
 		},
 		// Useless props for the bot
 		GuildEmojiManager: { maxSize: 0 },
 		GuildStickerManager: { maxSize: 0 },
 	}),
 	sweepers: {
-		// Members, users and messages are needed for the bot to function
-		guildMembers: {
-			interval: Time.Minute * 15,
-			// Sweep all members except the bot member and members in voice channels
-			filter: () => checkUserOrMember,
-		},
 		users: {
 			interval: Time.Minute * 15,
 			// Sweep all users except the bot user

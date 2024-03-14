@@ -45,5 +45,13 @@ export class ReadyEvent extends Listener {
 		}
 
 		await loadMediaOnlyChannels();
+
+		for (const guild of client.guilds.cache.values()) {
+			try {
+				await guild.members.fetch();
+			} catch (error) {
+				logger.error(`[ReadyEvent] Failed to fetch members for guild ${guild.name} (${guild.id})`, error);
+			}
+		}
 	}
 }
