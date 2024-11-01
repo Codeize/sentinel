@@ -428,10 +428,13 @@ export class ClanManager {
         await clanChannel.lockPermissions().catch(error => container.logger.debug(error));
         await clanChannel.permissionOverwrites.edit(this.member.guild.roles.everyone.id, {
             ViewChannel: false,
+            CreatePublicThreads: true,
         }).catch(error => container.logger.debug(error));
         await clanChannel.permissionOverwrites.edit(this.member.id, {
             ViewChannel: true,
             ManageChannels: true,
+            ManageMessages: true,
+            CreatePrivateThreads: true,
         }).catch(error => container.logger.debug(error));
 
         return clanChannel;
