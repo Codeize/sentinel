@@ -21,6 +21,11 @@ const forbiddenColors = (): ColorMatch[] => [
 		matched: false,
 		roleName: 'Darkest night',
 	},
+	{
+		color: 0x313338,
+		matched: false,
+		roleName: 'Discord dark mode background',
+	},
 ];
 
 export class CustomRoleCommand extends Subcommand {
