@@ -192,7 +192,7 @@ export class CustomRoleCommand extends Subcommand {
 		const roleData: RoleEditOptions = {
 			name: name ?? oldRole?.name,
 			color: color ?? oldRole?.color,
-			hoist: false,
+			hoist: true,
 			// Only set position when creating, as this requires moving roles around, which at Valorant's scale means a fuck ton of events sent to everyone :>
 			position: oldRole ? undefined : position,
 			mentionable: false,
