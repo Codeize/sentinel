@@ -1,7 +1,7 @@
 import { RoleSyncType } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
 import { Command } from '@sapphire/framework';
-import { type Message } from 'discord.js';
+import { type Message, type TextChannel } from 'discord.js';
 import { createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 
 @ApplyOptions<Command.Options>({
@@ -13,7 +13,7 @@ export class ToggleRankCommand extends Command {
 			return;
 		}
 
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'TOGGLE_RANK_ROLE_COMMAND_TOGGLED_ROLE',
 			embeds: [createInfoEmbed('Toggled the visibility of your rank role.')],
 		});

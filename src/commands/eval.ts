@@ -4,7 +4,7 @@ import { Command } from '@sapphire/framework';
 import { Stopwatch } from '@sapphire/stopwatch';
 import { Type } from '@sapphire/type';
 import { codeBlock, isThenable } from '@sapphire/utilities';
-import type { Message } from 'discord.js';
+import type { Message, TextChannel } from 'discord.js';
 
 export class ClientCommand extends Command {
 	public override async messageRun(message: Message, args: Args) {
@@ -15,7 +15,7 @@ export class ClientCommand extends Command {
 		const code = await args.rest('string');
 		const { success, result, time, type } = await this.eval(message, code);
 
-		return message.channel.send(
+		return (message.channel as TextChannel).send(
 			(success ? '**Output**:{output}\n**Type**:{type}\n{time}' : '**Error**:{output}\n**Type**:{type}\n{time}')
 				.replace('{output}', codeBlock('js', result))
 				.replace('{type}', codeBlock('ts', type.toString()))

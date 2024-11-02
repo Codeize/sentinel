@@ -1,6 +1,6 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { Events, Listener } from '@sapphire/framework';
-import type { GuildMember } from 'discord.js';
+import type { GuildMember, TextChannel } from 'discord.js';
 
 @ApplyOptions<Listener.Options>({ event: Events.GuildMemberUpdate })
 export class NotificationRoleAdd extends Listener<typeof Events.GuildMemberUpdate> {
@@ -37,7 +37,7 @@ export class NotificationRoleAdd extends Listener<typeof Events.GuildMemberUpdat
 					continue;
 				}
 
-				await channel.send({
+				await (channel as TextChannel).send({
 					content: `<@${newMember.id}> ${content}`,
 					allowedMentions: {
 						parse: [],

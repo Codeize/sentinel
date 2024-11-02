@@ -2,7 +2,7 @@ import { setTimeout } from 'node:timers/promises';
 import { ApplyOptions } from '@sapphire/decorators';
 import { Events, Listener } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
-import type { Message } from 'discord.js';
+import type { Message, TextChannel } from 'discord.js';
 import { isMediaOnlyChannel } from '../../lib/utils/caches/mediaOnlyCache.js';
 
 @ApplyOptions<Listener.Options>({
@@ -31,7 +31,7 @@ export class MessagesWithMedia extends Listener {
 			await message.delete();
 		}
 
-		const reply = await message.channel.send(
+		const reply = await (message.channel as TextChannel).send(
 			`${message.author}, sorry, but this channel is for media only, text messages are not allowed!`,
 		);
 

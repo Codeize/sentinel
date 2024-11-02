@@ -2,7 +2,7 @@ import process from 'node:process';
 import { time } from '@discordjs/builders';
 import { Command } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
-import type { ChatInputCommandInteraction, GuildMember, Message, VoiceChannel } from 'discord.js';
+import type { ChatInputCommandInteraction, GuildMember, Message, TextChannel, VoiceChannel } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { UserError } from '../lib/extensions/UserError.js';
 import { announceAlreadyStartedVoteKick, createVoteKick } from '../lib/utils/votekick.js';
@@ -18,7 +18,7 @@ export class VoteKick extends Command {
 
 		// Cannot run command outside guild
 		// commands/votekick.ts, m:slashCommand, l:231
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_COMMAND_CANNOT_RUN_OUTSIDE_GUILD_MESSAGE',
 			embeds: [
 				new EmbedBuilder()
@@ -29,7 +29,7 @@ export class VoteKick extends Command {
 
 		// Member outside voice channel
 		// commands/votekick.ts, m:slashCommand, l:240
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_COMMAND_NEED_TO_BE_IN_VOICE_CHANNEL_MESSAGE',
 			embeds: [
 				new EmbedBuilder()
@@ -40,7 +40,7 @@ export class VoteKick extends Command {
 
 		// Channel limit is less than 3 but not 0 (prevent duo channels, but allows infinite member channels)
 		// commands/votekick.ts, m:slashCommand, l:247
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_COMMAND_CHANNEL_LIMIT_IS_TOO_SMALL_MESSAGE',
 			embeds: [
 				new EmbedBuilder()
@@ -51,7 +51,7 @@ export class VoteKick extends Command {
 
 		// Channel has less than 3 members
 		// commands/votekick.ts, m:slashCommand, l:252
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_COMMAND_CHANNEL_HAS_TOO_FEW_MEMBERS_MESSAGE',
 			embeds: [
 				new EmbedBuilder()
@@ -62,7 +62,7 @@ export class VoteKick extends Command {
 
 		// User is not in the same voice channel as invoker
 		// commands/votekick.ts, m:slashCommand, l:257
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_COMMAND_USER_TO_KICK_IS_NOT_IN_VOICE_CHANNEL_MESSAGE',
 			embeds: [
 				new EmbedBuilder().setColor('Red').setDescription("That user is not in the voice channel you're in!"),
@@ -71,7 +71,7 @@ export class VoteKick extends Command {
 
 		// User cannot kick themselves
 		// commands/votekick.ts, m:slashCommand, l:262
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_COMMAND_USER_TO_KICK_CANNOT_BE_INVOKER_MESSAGE',
 			embeds: [
 				new EmbedBuilder()
@@ -84,7 +84,7 @@ export class VoteKick extends Command {
 
 		// Already existing vote
 		// lib/votekick.ts, l:90-110
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_ALREADY_PRESENT_MESSAGE',
 			embeds: [
 				new EmbedBuilder()
@@ -106,7 +106,7 @@ export class VoteKick extends Command {
 
 		// Vote started message
 		// lib/votekick.ts, l:31-69
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_STARTED_OR_RUNNING_MESSAGE',
 			embeds: [
 				new EmbedBuilder() //
@@ -137,21 +137,21 @@ export class VoteKick extends Command {
 
 		// Cannot cast same vote
 		// listeners/interactions/buttonPresses.ts, l:45-48
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_CANNOT_CAST_SAME_VOTE_MESSAGE',
 			embeds: [new EmbedBuilder().setColor('Red').setDescription('You cannot cast the same vote!')],
 		});
 
 		// Vote was registered
 		// listeners/interactions/buttonPresses.ts, l:107-110
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_REGISTERED_MESSAGE',
 			embeds: [new EmbedBuilder().setColor('Green').setDescription('Your vote was casted successfully')],
 		});
 
 		// Tied vote
 		// tasks/handleVoteResult.ts, l:100-121
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_FINISHED_TIE_MESSAGE',
 			embeds: [
 				new EmbedBuilder()
@@ -177,7 +177,7 @@ export class VoteKick extends Command {
 
 		// Proceed with kick
 		// tasks/handleVoteResult.ts, l:100-121
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_FINISHED_PROCEED_MESSAGE',
 			embeds: [
 				new EmbedBuilder()
@@ -203,7 +203,7 @@ export class VoteKick extends Command {
 
 		// Ignore vote
 		// tasks/handleVoteResult.ts, l:100-121
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'VOTE_FINISHED_IGNORE_MESSAGE',
 			embeds: [
 				new EmbedBuilder()
@@ -229,7 +229,7 @@ export class VoteKick extends Command {
 
 		// Modlog entry
 		// tasks/handleVoteResult.ts, l:170-190
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'MODLOG_ENTRY',
 			embeds: [
 				new EmbedBuilder()
@@ -254,7 +254,7 @@ export class VoteKick extends Command {
 
 		// Member timed out temporarily
 		// tasks/handleVoteResult.ts, l:146-158
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'MEMBER_TIMED_OUT_TEMPORARILY_DM',
 			embeds: [
 				new EmbedBuilder()
@@ -267,7 +267,7 @@ export class VoteKick extends Command {
 
 		// Member timed out permanently
 		// tasks/handleVoteResult.ts, l:146-158
-		await message.channel.send({
+		await (message.channel as TextChannel).send({
 			content: 'MEMBER_TIMED_OUT_PERMANENTLY_DM',
 			embeds: [
 				new EmbedBuilder()
@@ -286,7 +286,7 @@ export class VoteKick extends Command {
 		if (!interaction.guildId) throw new UserError('Cannot run this command outside of a guild channel!');
 
 		// If the command was ran in a channel that's not intended to be used, throw
-		if (interaction.channelId !== process.env.LFG_VOTEKICK_CHANNEL ?? '864629778894815273') {
+		if (interaction.channelId !== (process.env.LFG_VOTEKICK_CHANNEL ?? '864629778894815273')) {
 			throw new UserError(
 				`Cannot run this command outside the <#${process.env.LFG_VOTEKICK_CHANNEL ?? '864629778894815273'}> channel!`,
 			);

@@ -9,6 +9,7 @@ import {
     type MessageComponentInteraction,
     type MessageCreateOptions,
     type TextBasedChannel,
+    type TextChannel,
     type User,
 } from 'discord.js';
 
@@ -45,7 +46,13 @@ export async function waitForButtonConfirm(
             if (contextIsInteraction) {
                 return context.replied || context.deferred ? context.editReply.bind(context) : context.reply.bind(context);
             } else {
-                return 'send' in context ? context.send.bind(context) : context.channel!.send.bind(context.channel);
+                if ('send' in context) {
+                    return context.send.bind(context)
+                }
+
+                const channel = (context as Message).channel as TextChannel;
+
+                return channel.send.bind(channel);
             }
         };
 

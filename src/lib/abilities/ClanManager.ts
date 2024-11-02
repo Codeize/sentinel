@@ -432,6 +432,15 @@ export class ClanManager {
         await clanChannel.permissionOverwrites.edit(this.member.guild.roles.everyone.id, {
             ViewChannel: false,
             CreatePublicThreads: true,
+            SendPolls: true,
+            SendVoiceMessages: true,
+            UseEmbeddedActivities: true,
+            EmbedLinks: true,
+            AttachFiles: true,
+            AddReactions: true,
+            UseExternalEmojis: true,
+            UseExternalStickers: true,
+            UseExternalApps: true,
         }).catch(error => container.logger.debug(error));
         await clanChannel.permissionOverwrites.edit(this.member.id, {
             ViewChannel: true,
