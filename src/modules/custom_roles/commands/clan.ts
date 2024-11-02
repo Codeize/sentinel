@@ -403,6 +403,7 @@ export class ClanCommand extends Subcommand {
 			await newInteraction.editReply({
 				content: '',
 				embeds: [createInfoEmbed('Cancelled leaving the clan.')],
+				components: [],
 			});
 
 			return;
@@ -415,6 +416,7 @@ export class ClanCommand extends Subcommand {
 			embeds: [createInfoEmbed(
 				`# 🚪 You left the clan\nYou have been removed from the clan "${customRole!.name}" owned by ${clanOwner}.`
 			)],
+			components: [],
 		});
 	}
 
