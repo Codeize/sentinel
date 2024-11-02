@@ -56,7 +56,7 @@ export class ClanInvite extends InteractionHandler {
 		const clanOwner = await interaction.guild.members.fetch(data.clanOwner).catch(() => {});
 
 		if (!clanOwner) {
-			await interaction.update({
+			await interaction.editReply({
 				content: `❌ This invitation was sent by a member who does not seem to be in the server anymore.`,
 				components: [],
 			}).catch(error => this.container.logger.error(`[CLAN] (invite 2.20) Failed to update button interaction: ${error}`));
@@ -89,7 +89,7 @@ export class ClanInvite extends InteractionHandler {
 					break;
 			}
 
-			await interaction.update({
+			await interaction.editReply({
 				content: errorMessage,
 				components: [],
 			}).catch(error => this.container.logger.error(`[CLAN] (invite 2.30) Failed to update button interaction: ${error}`));
@@ -97,7 +97,7 @@ export class ClanInvite extends InteractionHandler {
 			return;
 		}
 
-		await interaction.update({
+		await interaction.editReply({
 			content: `✅ Invitation accepted.`,
 			components: [],
 		}).catch(error => this.container.logger.error(`[CLAN] (invite 2.40) Failed to update button interaction: ${error}`));
