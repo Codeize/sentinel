@@ -9,6 +9,7 @@ const welcomeMessages = [
 	'Better late than never, I guess.',
 	`A team isn't complete without its bottom frag.`,
 	`Who's up for swifties?`,
+	'Initiating lockdown sequence. Exit doors locked.'
 ];
 
 @ApplyOptions<InteractionHandler.Options>({
