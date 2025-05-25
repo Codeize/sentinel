@@ -8,9 +8,9 @@ import {
 	ClanMemberRemoveStatus,
 	MAX_MEMBERS_IN_CLAN,
 } from '../../../lib/abilities/ClanManager.js';
+import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
 import { createErrorEmbed, createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 import { waitForButtonConfirm } from '../../../lib/utils/waitForInteraction.js';
-import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
 
 const clanInviteCooldown = 60 * 60_000; // 60 seconds * 60 minutes * 24 hours = 1 hour
 const clanInviteDelayString = 'an hour';
@@ -136,7 +136,7 @@ export class ClanCommand extends Subcommand {
 			const errorMessage = ClanManager.getDeletionStatusMessage(clanDeletionStatus);
 
 			this.container.logger.error(
-				`[CLAN] ${interaction.member.user.username} failed to delete clan: ${errorMessage}`,
+				`[CLAN ${interaction.member.id}] ${interaction.member.user.username} failed to delete clan: ${errorMessage}`,
 			);
 			await newInteraction.editReply({
 				content: '',
@@ -167,7 +167,7 @@ export class ClanCommand extends Subcommand {
 
 		if (!memberToInvite) {
 			this.container.logger.info(
-				`[CLAN] ${interaction.member.user.username} tried to invite a member but the provided member was not found.`,
+				`[CLAN ${interaction.member.id}] ${interaction.member.user.username} tried to invite a member but the provided member was not found.`,
 			);
 			await interaction.editReply({
 				embeds: [createErrorEmbed('The provided member could not be found.')],
@@ -181,7 +181,7 @@ export class ClanCommand extends Subcommand {
 
 		if (cooldowns.has(cooldownKey) && Date.now() < cooldowns.get(cooldownKey)!) {
 			this.container.logger.info(
-				`[CLAN] ${interaction.member.user.username} tried to invite a member but they were on cooldown.`,
+				`[CLAN ${interaction.member.id}] ${interaction.member.user.username} tried to invite a member but they were on cooldown.`,
 			);
 			await interaction.editReply({
 				embeds: [createErrorEmbed(`You can only invite the same member once ${clanInviteDelayString}.`)],
@@ -199,7 +199,7 @@ export class ClanCommand extends Subcommand {
 
 		if (!invitesChannel) {
 			this.container.logger.info(
-				`[CLAN] ${interaction.member.user.username} tried to invite a member but the invites channel was not configured.`,
+				`[CLAN ${interaction.member.id}] ${interaction.member.user.username} tried to invite a member but the invites channel was not configured.`,
 			);
 			await interaction.editReply({
 				embeds: [
@@ -215,7 +215,7 @@ export class ClanCommand extends Subcommand {
 
 		if (!clan) {
 			this.container.logger.info(
-				`[CLAN] ${interaction.member.user.username} tried to invite a member but they do not own a clan.`,
+				`[CLAN ${interaction.member.id}] ${interaction.member.user.username} tried to invite a member but they do not own a clan.`,
 			);
 			await interaction.editReply({
 				embeds: [createErrorEmbed('You do not own a clan.')],
@@ -227,7 +227,7 @@ export class ClanCommand extends Subcommand {
 
 		if (clanMembers.size >= MAX_MEMBERS_IN_CLAN) {
 			this.container.logger.info(
-				`[CLAN] ${interaction.member.user.username} tried to invite a member but the clan already has the maximum amount of members.`,
+				`[CLAN ${interaction.member.id}] ${interaction.member.user.username} tried to invite a member but the clan already has the maximum amount of members.`,
 			);
 			await interaction.editReply({
 				embeds: [createErrorEmbed('Your clan already has the maximum amount of members.')],
@@ -239,7 +239,7 @@ export class ClanCommand extends Subcommand {
 
 		cooldowns.set(cooldownKey, Date.now() + clanInviteCooldown);
 		this.container.logger.info(
-			`[CLAN] ${interaction.member.user.username} invited ${memberToInvite.user.username} to their clan. Sending invitation...`,
+			`[CLAN ${interaction.member.id}] ${interaction.member.user.username} invited ${memberToInvite.user.username} to their clan. Sending invitation...`,
 		);
 
 		await invitesChannel
@@ -262,12 +262,12 @@ export class ClanCommand extends Subcommand {
 			})
 			.catch((error) =>
 				this.container.logger.info(
-					`[CLAN] ${interaction.member.user.username} tried to invite ${memberToInvite.user.username} but an error occurred when trying to send invitation: ${error}`,
+					`[CLAN ${interaction.member.id}] ${interaction.member.user.username} tried to invite ${memberToInvite.user.username} but an error occurred when trying to send invitation: ${error}`,
 				),
 			);
 
 		this.container.logger.info(
-			`[CLAN] ${interaction.member.user.username} invited ${memberToInvite.user.username} to their clan. Invitation sent, updating reply...`,
+			`[CLAN ${interaction.member.id}] ${interaction.member.user.username} invited ${memberToInvite.user.username} to their clan. Invitation sent, updating reply...`,
 		);
 
 		await interaction
@@ -281,12 +281,12 @@ export class ClanCommand extends Subcommand {
 			})
 			.catch((error) =>
 				this.container.logger.info(
-					`[CLAN] ${interaction.member.user.username} tried to invite ${memberToInvite.user.username} but an error occurred when trying to update the reply: ${error}`,
+					`[CLAN ${interaction.member.id}] ${interaction.member.user.username} tried to invite ${memberToInvite.user.username} but an error occurred when trying to update the reply: ${error}`,
 				),
 			);
 
 		this.container.logger.info(
-			`[CLAN] ${interaction.member.user.username} invited ${memberToInvite.user.username} to their clan. Reply updated.`,
+			`[CLAN ${interaction.member.id}] ${interaction.member.user.username} invited ${memberToInvite.user.username} to their clan. Reply updated.`,
 		);
 	}
 
@@ -381,11 +381,11 @@ export class ClanCommand extends Subcommand {
 		}
 
 		const customRole = await clanManager.getCustomRole();
-		const clanOwner = clanManager.getClanOwner();
+		const clanOwnerId = clanManager.getClanOwnerId();
 
 		const { context, confirmed } = await waitForButtonConfirm(
 			interaction,
-			`# ⚠️ WARNING\n**You are about to leave the clan "${customRole!.name}" owned by ${clanOwner}**\nYou will also lose the custom role linked to it, if you claimed it.\n\nAre you sure you want to leave the clan?`,
+			`# ⚠️ WARNING\n**You are about to leave the clan "${customRole!.name}" owned by <@${clanOwnerId}>**\nYou will also lose the custom role linked to it, if you claimed it.\n\nAre you sure you want to leave the clan?`,
 			{
 				confirmText: 'Yes',
 				cancelText: 'No',
@@ -412,7 +412,7 @@ export class ClanCommand extends Subcommand {
 			content: '',
 			embeds: [
 				createInfoEmbed(
-					`# 🚪 You left the clan\nYou have been removed from the clan "${customRole!.name}" owned by ${clanOwner}.`,
+					`# 🚪 You left the clan\nYou have been removed from the clan "${customRole!.name}" owned by <@${clanOwnerId}>.`,
 				),
 			],
 			components: [],

@@ -263,6 +263,7 @@ model Clan {
   channelId       String
   isRoleClaimable Boolean      @default(true)
   members         ClanMember[]
+  deletionTaskId  Int?
 
   @@id([guildId, customRoleId])
   @@map("clan")
