@@ -11,6 +11,19 @@ export class GuildMemberRemove extends Listener<typeof Events.GuildMemberRemove>
 			guildId: member.guild.id,
 		});
 
-		await new ClanManager(member).makeClanOrphan();
+		const clanManager = new ClanManager(member);
+
+		await clanManager.getClan();
+		await clanManager.makeClanOrphan();
+
+		const customRoleId = await clanManager.getCustomRoleId();
+
+		await this.container.prisma.clanMember.deleteMany({
+			where: {
+				clanGuildId: member.guild.id,
+				userId: member.id,
+				clanCustomRoleId: { notIn: customRoleId ? [customRoleId] : [] }
+			},
+		});
 	}
 }

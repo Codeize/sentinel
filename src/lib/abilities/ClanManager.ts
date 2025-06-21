@@ -43,7 +43,8 @@ export enum ClanMemberAddStatus {
 
 export enum ClanMemberRemoveStatus {
 	Removed = 0,
-	NotInClan = 1,
+	ClanNotFound = 1,
+	NotInClan = 2,
 }
 
 type CacheType = 'clan' | 'clanChannel' | 'clanMembers' | 'customRole' | 'premiumMember';
@@ -183,6 +184,10 @@ export class ClanManager {
 		switch (status) {
 			case ClanMemberRemoveStatus.Removed:
 				message = `The member was removed from your clan.`;
+				break;
+
+			case ClanMemberRemoveStatus.ClanNotFound:
+				message = 'You do not seem to have a clan.';
 				break;
 
 			case ClanMemberRemoveStatus.NotInClan:
@@ -645,6 +650,11 @@ export class ClanManager {
 
 	public async removeMember(member: GuildMember): Promise<ClanMemberRemoveStatus> {
 		const clan = await this.getClan();
+
+		if (!clan) {
+			return ClanMemberRemoveStatus.ClanNotFound;
+		}
+
 		const premiumMember = await this.getPremiumMember();
 		const clanMembers = await this.getDiscordClanMembers();
 		const clanChannel = await this.getClanChannel();
@@ -667,6 +677,12 @@ export class ClanManager {
 		this.invalidateCache('clanMembers');
 
 		return clanMembers.has(member.id) ? ClanMemberRemoveStatus.Removed : ClanMemberRemoveStatus.NotInClan;
+	}
+
+	public async getCustomRoleId(): Promise<string | undefined> {
+		const premiumMember = await this.getPremiumMember();
+
+		return premiumMember?.customRoleId ?? undefined;
 	}
 
 	public invalidateCache(type: CacheType): void {
@@ -773,12 +789,6 @@ export class ClanManager {
 		return container.prisma.premiumMember.findMany({
 			where: { guildId: { not: this.guildId }, userId: this.userId },
 		});
-	}
-
-	private async getCustomRoleId(): Promise<string | undefined> {
-		const premiumMember = await this.getPremiumMember();
-
-		return premiumMember?.customRoleId ?? undefined;
 	}
 
 	private async getCustomRoleIdsFromOtherGuilds(): Promise<string[]> {
