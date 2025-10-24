@@ -247,9 +247,8 @@ export class ClanManager {
 		}
 
 		return (
-			((await this.guild.channels
-				.fetch(guildConfig.clanInviteChannelId)
-				.catch(() => {})) as TextChannel) ?? undefined
+			((await this.guild.channels.fetch(guildConfig.clanInviteChannelId).catch(() => {})) as TextChannel) ??
+			undefined
 		);
 	}
 
@@ -384,7 +383,7 @@ export class ClanManager {
 		return this.discordClanMembers ?? new Collection<string, GuildMember>();
 	}
 
-	public async createClan(): Promise<ClanCreationStatus> {
+	public async createClan(description?: string | null): Promise<ClanCreationStatus> {
 		const clanCategory = await this.getClanCategory();
 
 		if (!clanCategory) {
@@ -430,6 +429,7 @@ export class ClanManager {
 				guildId: this.guildId,
 				customRoleId: customRole.id,
 				channelId: clanChannel.id,
+				description,
 			},
 		});
 
@@ -532,7 +532,7 @@ export class ClanManager {
 		if (clanMemberAddStatus !== ClanMemberAddStatus.Added) {
 			container.logger.info(
 				`[CLAN ${this.userId}] Could not add owner back: `,
-				ClanManager.getMemberAddStatusMessage(clanMemberAddStatus)
+				ClanManager.getMemberAddStatusMessage(clanMemberAddStatus),
 			);
 		}
 	}
@@ -722,15 +722,10 @@ export class ClanManager {
 
 		let errorHappened = false;
 
-		await clanChannel.lockPermissions().catch(
-			(error) => {
-				errorHappened = true;
-				container.logger.info(
-					`[CLAN ${this.userId}] Clan channel permissions locking failed: `,
-					error
-				)
-			}
-		);
+		await clanChannel.lockPermissions().catch((error) => {
+			errorHappened = true;
+			container.logger.info(`[CLAN ${this.userId}] Clan channel permissions locking failed: `, error);
+		});
 		await clanChannel.permissionOverwrites
 			.edit(this.guild.roles.everyone.id, {
 				ViewChannel: false,
@@ -749,8 +744,8 @@ export class ClanManager {
 				errorHappened = true;
 				container.logger.info(
 					`[CLAN ${this.userId}] Clan channel permissions setting for @everyone failed: `,
-					error
-				)
+					error,
+				);
 			});
 		await clanChannel.permissionOverwrites
 			.edit(this.userId, {
@@ -764,8 +759,8 @@ export class ClanManager {
 				errorHappened = true;
 				container.logger.info(
 					`[CLAN ${this.userId}] Clan channel permissions setting for owner failed: `,
-					error
-				)
+					error,
+				);
 			});
 
 		if (errorHappened) {
