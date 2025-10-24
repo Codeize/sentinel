@@ -63,6 +63,8 @@ export class ClanCommand extends Subcommand {
 	public async createSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		await interaction.deferReply({ ephemeral: true });
 
+		const description = interaction.options.getString('description');
+
 		const memberAbilities = new MemberAbilities(interaction.member);
 		const clanManager = new ClanManager(interaction.member);
 		const oldClan = await clanManager.getClan();
@@ -73,14 +75,16 @@ export class ClanCommand extends Subcommand {
 		if (!oldClan && otherClans.length > 0 && !memberAbilities.hasAbility('areAbilitiesMultiGuild')) {
 			await interaction.editReply({
 				embeds: [
-					createInfoEmbed('You cannot create a clan in this server as you already have a clan in another server.'),
+					createInfoEmbed(
+						'You cannot create a clan in this server as you already have a clan in another server.',
+					),
 				],
 			});
 
 			return;
 		}
 
-		const clanCreationStatus = await clanManager.createClan();
+		const clanCreationStatus = await clanManager.createClan(description);
 
 		if (clanCreationStatus !== ClanCreationStatus.Created) {
 			await interaction.editReply({
@@ -385,12 +389,14 @@ export class ClanCommand extends Subcommand {
 
 		if (clanOwnerId === interaction.user.id) {
 			const clanCommandId = interaction.client.application.commands.cache.find(
-				command => command.name === 'clan'
+				(command) => command.name === 'clan',
 			)?.id;
-			const clanCommandMention = clanCommandId ? `</clan delete:${clanCommandId}>` : '`/clan delete`'
+			const clanCommandMention = clanCommandId ? `</clan delete:${clanCommandId}>` : '`/clan delete`';
 
 			await interaction.editReply({
-				embeds: [createErrorEmbed(`You cannot leave your own clan. Did you mean to use ${clanCommandMention}?`)],
+				embeds: [
+					createErrorEmbed(`You cannot leave your own clan. Did you mean to use ${clanCommandMention}?`),
+				],
 			});
 
 			return;
@@ -540,7 +546,18 @@ export class ClanCommand extends Subcommand {
 				.setName(this.name)
 				.setDescription('Handle member clans.')
 				.setDMPermission(false)
-				.addSubcommand((subcommand) => subcommand.setName('create').setDescription('To create your clan'))
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('create')
+						.setDescription('To create your clan')
+						.addStringOption((option) =>
+							option
+								.setName('description')
+								.setDescription('A short description for your clan')
+								.setMinLength(1)
+								.setMaxLength(150),
+						),
+				)
 				.addSubcommand((subcommand) =>
 					subcommand
 						.setName('invite')
