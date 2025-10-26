@@ -58,6 +58,11 @@ export class ClanCommand extends Subcommand {
 			name: 'unclaim-role',
 			chatInputRun: 'unclaimRoleSubcommand',
 		},
+		{
+			type: 'method',
+			name: 'set-description',
+			chatInputRun: 'setDescriptionSubcommand',
+		},
 	];
 
 	public async createSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
@@ -540,6 +545,73 @@ export class ClanCommand extends Subcommand {
 		});
 	}
 
+	public async setDescriptionSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		await interaction.deferReply({ ephemeral: true });
+
+		const newDescription = interaction.options.getString('description', true);
+
+		const clanManager = new ClanManager(interaction.member);
+		const clan = await clanManager.getClan();
+
+		if (!clan) {
+			await interaction.editReply({
+				embeds: [createErrorEmbed('You do not own a clan.')],
+			});
+			return;
+		}
+
+		const customRoleId = await clanManager.getCustomRoleId();
+		if (clan.customRoleId !== customRoleId) {
+			// This case should ideally not happen if getClan() works correctly based on member,
+			// but it's a safeguard.
+			await interaction.editReply({
+				embeds: [createErrorEmbed('Could not verify clan ownership.')],
+			});
+			return;
+		}
+
+		try {
+			await this.container.prisma.clan.update({
+				where: {
+					guildId_customRoleId: {
+						guildId: clan.guildId,
+						customRoleId: clan.customRoleId,
+					},
+				},
+				data: {
+					description: newDescription,
+				},
+			});
+
+			clanManager.invalidateCache('clan');
+
+			await interaction.editReply({
+				embeds: [createInfoEmbed(`✅ Successfully updated your clan's description.`)],
+			});
+
+			// Optional: Trigger directory update immediately
+			const task = this.container.client.stores.get('tasks').get('UpdateClanDirectory');
+			if (task) {
+				this.container.logger.info(
+					`[CLAN SET DESCRIPTION] Triggering immediate directory update task for guild ${interaction.guildId}`,
+				);
+				void task.run();
+			}
+		} catch (error) {
+			this.container.logger.error(
+				`[CLAN SET DESCRIPTION] Failed to update description for clan ${clan.customRoleId} in guild ${clan.guildId}`,
+				error,
+			);
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						'An error occurred while trying to update the description. Please try again later.',
+					),
+				],
+			});
+		}
+	}
+
 	public override registerApplicationCommands(registry: Subcommand.Registry) {
 		registry.registerChatInputCommand((builder) =>
 			builder
@@ -603,6 +675,19 @@ export class ClanCommand extends Subcommand {
 						.setName('unclaim-role')
 						.setDescription(
 							'To claim the custom role linked to the clan that owns the current text channel.',
+						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('set-description')
+						.setDescription('Updates the description of your clan.')
+						.addStringOption((option) =>
+							option
+								.setName('description')
+								.setDescription('The new description for your clan (max 100 characters)')
+								.setMinLength(1)
+								.setMaxLength(100)
+								.setRequired(true),
 						),
 				),
 		);
