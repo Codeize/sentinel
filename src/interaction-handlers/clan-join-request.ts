@@ -25,13 +25,23 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 		}
 
 		const parts = interaction.customId.split(':');
-		if (parts.length !== 4) return this.none(); // clan.join.<action>, requesterId, ownerId, clanRoleId
+		if (parts.length !== 4) {
+			this.container.logger.debug(
+				`[CLAN JOIN REQ PARSE] Invalid parts length: ${parts.length}. ID: ${interaction.customId}`,
+			);
+			return this.none();
+		}
 
 		// Destructure parts correctly based on format
 		const [prefix, requesterId, ownerId, clanRoleId] = parts;
-		const action = prefix.split('.')[2] as 'accept' | 'deny' | undefined; // Get action from clan.join.action
+		const action = prefix.split('.')[2] as 'accept' | 'deny' | undefined;
 
-		if (!action || (action !== 'accept' && action !== 'deny')) return this.none();
+		if (!action || (action !== 'accept' && action !== 'deny')) {
+			this.container.logger.debug(
+				`[CLAN JOIN REQ PARSE] Invalid action part: ${action}. ID: ${interaction.customId}`,
+			);
+			return this.none();
+		}
 
 		// IMPORTANT: Only the clan owner can press these buttons
 		if (interaction.user.id !== ownerId) {
@@ -44,10 +54,14 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			return this.none();
 		}
 
+		this.container.logger.debug(
+			`[CLAN JOIN REQ PARSE] Parsed successfully. Action: ${action}, Requester: ${requesterId}, Owner: ${ownerId}, Role: ${clanRoleId}`,
+		);
+
 		return this.some({
 			action,
 			requesterId,
-			clanRoleId, // ownerId removed, use interaction.user.id
+			clanRoleId,
 		});
 	}
 
@@ -55,25 +69,21 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 		interaction: ButtonInteraction<'cached'>,
 		data: InteractionHandler.ParseResult<this>,
 	): Promise<void> {
-		// --- Add Guild ID Check ---
-		if (!interaction.guildId) {
-			this.container.logger.error(
-				`[CLAN JOIN REQ HANDLER] Interaction ${interaction.id} is missing guildId unexpectedly.`,
-			);
-			// Cannot easily send ephemeral reply without guild context, just log and return.
-			return;
-		}
-		// --- End Guild ID Check ---
-
 		await interaction.deferUpdate();
 		this.container.logger.info(
-			`[CLAN JOIN REQ HANDLER] Running handler for interaction ${interaction.id}. Data: ${JSON.stringify(data)}`,
+			`[CLAN JOIN REQ HANDLER] Running handler for interaction ${interaction.id}. Guild: ${interaction.guildId}. Data: ${JSON.stringify(data)}`,
 		);
 
 		const updateOriginalMessage = async (
 			result: 'Accepted' | 'Denied' | 'Error' | 'Full' | 'Already Joined' | 'Requester In Another Clan',
 		) => {
 			try {
+				if (!interaction.message?.embeds?.[0]) {
+					this.container.logger.error(
+						`[CLAN JOIN REQ HANDLER] Original message ${interaction.message.id} is missing embeds.`,
+					);
+					return;
+				}
 				const originalEmbed = EmbedBuilder.from(interaction.message.embeds[0]);
 				originalEmbed.setFooter({ text: `${result} by ${interaction.user.tag}` });
 				originalEmbed.setTimestamp(new Date());
@@ -93,13 +103,12 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 
 		try {
 			const { action, requesterId, clanRoleId } = data;
-			const clanOwner = interaction.member as GuildMember; // Owner is the one interacting
+			const clanOwner = interaction.member as GuildMember;
 
 			// --- Fetch Clan Data First ---
 			this.container.logger.info(
 				`[CLAN JOIN REQ HANDLER] Fetching clan data (role ${clanRoleId}) with members for validation.`,
 			);
-			// Now we are sure interaction.guildId has a value due to the check above
 			const clan = await this.container.prisma.clan.findUnique({
 				where: { guildId_customRoleId: { guildId: interaction.guildId, customRoleId: clanRoleId } },
 				include: { members: true },
@@ -117,7 +126,6 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				});
 				return;
 			}
-			// Explicitly check if members array is present AFTER confirming clan is not null
 			if (!clan.members) {
 				this.container.logger.error(
 					`[CLAN JOIN REQ HANDLER] Clan object found, but 'members' relation is missing/null. Clan Role ID: ${clan.customRoleId}`,
@@ -151,7 +159,6 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				return;
 			}
 			if (!clanRole) {
-				// Should be redundant if clan was found, but safe check
 				this.container.logger.warn(`[CLAN JOIN REQ HANDLER] Clan role ${clanRoleId} not found unexpectedly.`);
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
@@ -260,7 +267,6 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 					ephemeral: true,
 				});
 			}
-			// --- End of try block ---
 		} catch (error) {
 			this.container.logger.error(
 				`[CLAN JOIN REQ HANDLER] UNEXPECTED ERROR during run for interaction ${interaction.id}:`,

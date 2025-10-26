@@ -1,6 +1,5 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { Command } from '@sapphire/framework';
-// Import ApplicationCommandOptionChoiceData from discord.js instead of sapphire
 import {
 	ActionRowBuilder,
 	AutocompleteInteraction,
@@ -11,7 +10,6 @@ import {
 	PermissionsBitField,
 	type ApplicationCommandOptionChoiceData,
 } from 'discord.js';
-// Import MAX_MEMBERS_IN_CLAN
 import { ClanManager, MAX_MEMBERS_IN_CLAN } from '../lib/abilities/ClanManager.js';
 import { createErrorEmbed, createInfoEmbed } from '../lib/utils/createEmbed.js';
 import { makeClanJoinRequestId } from '../interaction-handlers/clan-join-request.js';
@@ -25,7 +23,6 @@ const COOLDOWN_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
 	description: 'Requests to join a specific clan.',
 })
 export class RequestJoinClanCommand extends Command {
-	// Add return type Promise<void> and remove unnecessary returns
 	public override async chatInputRun(interaction: ChatInputCommandInteraction<'cached'>): Promise<void> {
 		await interaction.deferReply({ ephemeral: true });
 
@@ -37,7 +34,7 @@ export class RequestJoinClanCommand extends Command {
 		const targetClanRole = await interaction.guild.roles.fetch(targetClanRoleId).catch(() => null);
 		if (!targetClanRole) {
 			await interaction.editReply({ embeds: [createErrorEmbed('The specified clan role could not be found.')] });
-			return; // Exit early on error
+			return;
 		}
 
 		const clan = await this.container.prisma.clan.findUnique({
@@ -61,6 +58,7 @@ export class RequestJoinClanCommand extends Command {
 			await interaction.editReply({ embeds: [createErrorEmbed('Could not find the owner of that clan.')] });
 			return;
 		}
+
 		const clanOwnerMember = await interaction.guild.members.fetch(premiumOwner.userId).catch(() => null);
 		if (!clanOwnerMember) {
 			await interaction.editReply({
@@ -106,7 +104,6 @@ export class RequestJoinClanCommand extends Command {
 			return;
 		}
 
-		// Use imported constant
 		if (clan.members.length >= MAX_MEMBERS_IN_CLAN) {
 			await interaction.editReply({
 				embeds: [createErrorEmbed(`Sorry, **${targetClanRole.name}** is currently full.`)],
@@ -128,13 +125,45 @@ export class RequestJoinClanCommand extends Command {
 			return;
 		}
 
+		// --- Get Clan Channel ---
+		const clanManager = new ClanManager(clanOwnerMember);
+		const clanChannel = await clanManager.getClanChannel();
+
+		if (!clanChannel) {
+			this.container.logger.error(
+				`[CLAN JOIN REQ] Clan channel not found for clan ${clan.customRoleId} in guild ${clan.guildId}`,
+			);
+			await interaction.editReply({
+				embeds: [createErrorEmbed('The clan channel could not be found. Please contact modmail.')],
+			});
+			return;
+		}
+
+		// Check bot permissions in clan channel
+		const me = interaction.guild.members.me;
+		if (!me || !clanChannel.permissionsFor(me)?.has(PermissionsBitField.Flags.SendMessages)) {
+			this.container.logger.error(
+				`[CLAN JOIN REQ] Bot lacks SendMessages permission in clan channel ${clanChannel.id} for guild ${clan.guildId}`,
+			);
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						'I do not have permission to send messages in the clan channel. Please contact modmail.',
+					),
+				],
+			});
+			return;
+		}
+
+		// --- Send Request in Clan Channel ---
 		try {
 			const embed = new EmbedBuilder()
 				.setColor(targetClanRole.color || 'Blurple')
 				.setTitle(`📥 Clan Join Request: ${targetClanRole.name}`)
-				.setDescription(`${requester.user.tag} (${requester.toString()}) has requested to join your clan.`)
+				.setDescription(
+					`${clanOwnerMember.toString()}, ${requester.user.tag} (${requester.toString()}) has requested to join your clan.`,
+				)
 				.setThumbnail(requester.user.displayAvatarURL())
-				// Use imported constant
 				.addFields({ name: 'Members', value: `${clan.members.length}/${MAX_MEMBERS_IN_CLAN}`, inline: true })
 				.setTimestamp();
 
@@ -155,52 +184,26 @@ export class RequestJoinClanCommand extends Command {
 					.setEmoji('✅'),
 			);
 
-			let sentViaDm = true;
-			await clanOwnerMember.send({ embeds: [embed], components: [row] }).catch(async (dmError) => {
-				sentViaDm = false;
-				this.container.logger.warn(
-					`[CLAN JOIN REQ] Failed to DM clan owner ${clanOwnerMember.user.tag} (${clanOwnerMember.id}). Error: ${dmError.message}. Trying clan channel.`,
-				);
-				const clanManager = new ClanManager(clanOwnerMember);
-				const clanChannel = await clanManager.getClanChannel();
+			await clanChannel.send({ embeds: [embed], components: [row] });
 
-				// Check if bot exists in guild.members.me before accessing permissions
-				const meMember = interaction.guild.members.me;
-				if (
-					clanChannel &&
-					meMember &&
-					clanChannel.permissionsFor(meMember)?.has(PermissionsBitField.Flags.SendMessages)
-				) {
-					await clanChannel.send({
-						content: `${clanOwnerMember.toString()}, you have a new join request:`,
-						embeds: [embed],
-						components: [row],
-					});
-				} else {
-					this.container.logger.error(
-						`[CLAN JOIN REQ] Failed to send request to clan owner ${clanOwnerMember.user.tag} via DM and could not send to clan channel ${clanChannel?.id ?? 'N/A'}. Bot member found: ${!!meMember}`,
-					);
-					throw new Error(
-						'Could not notify the clan owner. Their DMs might be closed, and I might lack permission to send messages in their clan channel.',
-					);
-				}
-			});
+			this.container.logger.info(
+				`[CLAN JOIN REQ] Sent join request from ${requester.id} to clan channel ${clanChannel.id} for clan ${targetClanRole.name}`,
+			);
 
 			requestCooldowns.set(cooldownKey, now + COOLDOWN_DURATION);
 
 			await interaction.editReply({
 				embeds: [
 					createInfoEmbed(
-						`✅ Your request to join **${targetClanRole.name}** has been sent ${sentViaDm ? 'to the clan owner' : 'in the clan channel'}.`,
+						`✅ Your request to join **${targetClanRole.name}** has been sent in the clan channel.`,
 					),
 				],
 			});
 		} catch (error: any) {
 			this.container.logger.error(
-				`[CLAN JOIN REQ] Error sending request from ${requester.user.tag} to clan ${targetClanRole.name}`,
+				`[CLAN JOIN REQ] Error sending request from ${requester.user.tag} to clan channel for ${targetClanRole.name}`,
 				error,
 			);
-			// Don't return here, just edit the reply
 			await interaction.editReply({
 				embeds: [createErrorEmbed(`Could not send the join request: ${error.message}`)],
 			});
@@ -221,9 +224,7 @@ export class RequestJoinClanCommand extends Command {
 				return interaction.respond([{ name: 'No visible clans found', value: '__NONE__' }]);
 			}
 
-			// Fetch all roles once
 			const allRoles = await interaction.guild.roles.fetch();
-
 			const clanRoles = allRoles.filter((role) => visibleClans.some((clan) => clan.customRoleId === role.id));
 
 			const options: ApplicationCommandOptionChoiceData[] = [];
@@ -260,13 +261,13 @@ export class RequestJoinClanCommand extends Command {
 	public override registerApplicationCommands(registry: Command.Registry) {
 		registry.registerChatInputCommand((builder) =>
 			builder
-				.setName('request-join-clan') // Changed name slightly for clarity
+				.setName('request-join-clan')
 				.setDescription(this.description)
 				.setDMPermission(false)
 				.addStringOption((option) =>
 					option
 						.setName('clan')
-						.setDescription('The name or ID of the clan you want to join.') // Updated description
+						.setDescription('The name or ID of the clan you want to join.')
 						.setRequired(true)
 						.setAutocomplete(true),
 				)
