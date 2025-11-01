@@ -1,4 +1,3 @@
-import type { ClanMember } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import { ButtonInteraction, EmbedBuilder, GuildMember } from 'discord.js';
@@ -14,6 +13,8 @@ export function makeClanJoinRequestId(
 ) {
 	return `clan.join.${action}:${requesterId}:${ownerId}:${clanRoleId}` as const;
 }
+
+type UpdateMessageResult = 'Accepted' | 'Denied' | 'Error' | 'Full' | 'Already Joined' | 'Requester In Another Clan';
 
 @ApplyOptions<InteractionHandler.Options>({
 	interactionHandlerType: InteractionHandlerTypes.Button,
@@ -74,9 +75,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			`[CLAN JOIN REQ HANDLER] Running handler for interaction ${interaction.id}. Guild: ${interaction.guildId}. Data: ${JSON.stringify(data)}`,
 		);
 
-		const updateOriginalMessage = async (
-			result: 'Accepted' | 'Denied' | 'Error' | 'Full' | 'Already Joined' | 'Requester In Another Clan',
-		) => {
+		const updateOriginalMessage = async (result: UpdateMessageResult) => {
 			try {
 				if (!interaction.message?.embeds?.[0]) {
 					this.container.logger.error(
@@ -105,19 +104,26 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			const { action, requesterId, clanRoleId } = data;
 			const clanOwner = interaction.member as GuildMember;
 
-			// --- Fetch Clan Data First ---
+			// --- Use ClanManager ---
+			this.container.logger.info(
+				`[CLAN JOIN REQ HANDLER] Instantiating ClanManager for owner ${clanOwner.id}.`,
+			);
+			const clanManager = new ClanManager(clanOwner);
+
+			// --- Fetch Clan Data via ClanManager ---
 			this.container.logger.info(
 				`[CLAN JOIN REQ HANDLER] Fetching clan data (role ${clanRoleId}) with members for validation.`,
 			);
-			const clan = await this.container.prisma.clan.findUnique({
-				where: { guildId_customRoleId: { guildId: interaction.guildId, customRoleId: clanRoleId } },
-				include: { members: true },
-			});
+			const clan = await clanManager.getClan();
+			const clanRole = await clanManager.getCustomRole(); // Fetches the role associated with the owner
+			const clanMembers = await clanManager.getClanMembers();
+			const memberCount = clanMembers.size;
 
 			// --- Rigorous Clan Null/Member Checks ---
-			if (!clan) {
+			// Check if clan and role (which is tied to clan) exist
+			if (!clan || !clanRole) {
 				this.container.logger.error(
-					`[CLAN JOIN REQ HANDLER] Clan data not found for owner ${clanOwner.id} / role ${clanRoleId}.`,
+					`[CLAN JOIN REQ HANDLER] Clan data or role not found for owner ${clanOwner.id}.`,
 				);
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
@@ -126,27 +132,27 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				});
 				return;
 			}
-			if (!clan.members) {
+
+			// This check ensures the handler is for the correct clan, as clanRoleId is in the customId
+			if (clan.customRoleId !== clanRoleId) {
 				this.container.logger.error(
-					`[CLAN JOIN REQ HANDLER] Clan object found, but 'members' relation is missing/null. Clan Role ID: ${clan.customRoleId}`,
+					`[CLAN JOIN REQ HANDLER] Mismatch! Handler for role ${clanRoleId} but owner's clan role is ${clan.customRoleId}.`,
 				);
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
-					embeds: [createErrorEmbed('Clan data seems incomplete. Could not verify members.')],
+					embeds: [createErrorEmbed('There was a mismatch with the clan data. Please try again.')],
 					ephemeral: true,
 				});
 				return;
 			}
+
 			this.container.logger.debug(
-				`[CLAN JOIN REQ HANDLER] Fetched clan object successfully. Member count: ${clan.members.length}`,
+				`[CLAN JOIN REQ HANDLER] Fetched clan object successfully. Member count: ${memberCount}`,
 			);
 
-			// --- Fetch Requester and Role ---
-			this.container.logger.info(
-				`[CLAN JOIN REQ HANDLER] Fetching requester ${requesterId} and role ${clanRoleId}`,
-			);
+			// --- Fetch Requester ---
+			this.container.logger.info(`[CLAN JOIN REQ HANDLER] Fetching requester ${requesterId}`);
 			const requester = await interaction.guild.members.fetch(requesterId).catch(() => null);
-			const clanRole = await interaction.guild.roles.fetch(clanRoleId).catch(() => null);
 
 			// --- Validation Requester/Role ---
 			if (!requester) {
@@ -181,14 +187,13 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			this.container.logger.info(
 				`[CLAN JOIN REQ HANDLER] Processing ACCEPT for ${requesterId} to join ${clanRoleId}.`,
 			);
-			const clanManager = new ClanManager(clanOwner);
 
-			// --- Perform Validations using the already fetched 'clan' object ---
+			// --- Perform Validations using ClanManager data ---
 			this.container.logger.info(
-				`[CLAN JOIN REQ HANDLER] Validating clan capacity (${clan.members.length}/${MAX_MEMBERS_IN_CLAN}), existing membership, other memberships.`,
+				`[CLAN JOIN REQ HANDLER] Validating clan capacity (${memberCount}/${MAX_MEMBERS_IN_CLAN}), existing membership, other memberships.`,
 			);
 
-			if (clan.members.length >= MAX_MEMBERS_IN_CLAN) {
+			if (memberCount >= MAX_MEMBERS_IN_CLAN) {
 				await updateOriginalMessage('Full');
 				await interaction.followUp({
 					embeds: [createErrorEmbed(`Your clan **${clanRole.name}** is full.`)],
@@ -197,7 +202,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				return;
 			}
 
-			if (clan.members.some((m: ClanMember) => m.userId === requester.id)) {
+			if (clanMembers.has(requester.id)) {
 				await updateOriginalMessage('Already Joined');
 				await interaction.followUp({
 					embeds: [createErrorEmbed(`${requester.user.tag} is already in your clan.`)],
