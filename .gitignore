@@ -5,6 +5,7 @@ node_modules/
 *.iml
 /rethinkdb_data/
 coverage/
+.nvmrc
 
 # Environment variables
 .DS_Store
