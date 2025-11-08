@@ -8,9 +8,9 @@ const header = '[CLAN DIRECTORY] ';
 const clansPerPage = 10;
 
 // Emojis and icons
-const CONNECTION1 = '<:C1:1436457103781920858>';
-const CONNECTION2 = '<:C2:1436457106172678236>';
-const SEPARATOR = '<:__:1436841453123797012>';
+const CONNECTION1 = '<:ConnectionContinuing:1436843068438351944>';
+const CONNECTION2 = '<:ConnectionEnding:1436843084985143449>';
+const SEPARATOR = '<:valBlank:806719192191336448>';
 
 export class UpdateClanDirectory extends Task {
 	public async run() {
@@ -111,7 +111,7 @@ export class UpdateClanDirectory extends Task {
 					const roleIcon =
 						clanRole?.icon ?
 							`<:roleicon:> [ ](https://cdn.discordapp.com/role-icons/${data.customRoleId}/${clanRole.icon}.webp)`
-						:	`<:titan:1436840358112657562>`;
+						:	`<:icon_Titan:1181684178467696680>`;
 
 					const ownerMention = data.ownerId ? `<@${data.ownerId}>` : '`Unknown Owner`';
 					const descriptionText = data.description || '*No description set*';
