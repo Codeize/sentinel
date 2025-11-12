@@ -114,7 +114,7 @@ export class UpdateClanDirectory extends Task {
 					const descriptionText = data.description || '*No description set*';
 
 					fields.push({
-						name: `${roleIcon} ${data.name}`,
+						name: `${roleIcon}  ${data.name}`,
 						value: [
 							`-# ${CONNECTION1} Owner: ${ownerMention}`,
 							`-# ${CONNECTION1} Members: \`${data.memberCount}\` / ${MAX_MEMBERS_IN_CLAN}`,
@@ -133,11 +133,6 @@ export class UpdateClanDirectory extends Task {
 				});
 
 				embed.setFields(fields);
-				embed.setFooter({
-					text: `Page ${Math.floor(i / clansPerPage) + 1} of ${Math.ceil(
-						allClansData.length / clansPerPage,
-					)} | Total Visible Clans: ${allClansData.length}`,
-				});
 
 				embeds.push(embed);
 			}
@@ -147,8 +142,7 @@ export class UpdateClanDirectory extends Task {
 					new EmbedBuilder()
 						.setColor(0x27272f)
 						.setDescription(`## ${guild.name} Clan Discovery\n${SEPARATOR}`)
-						.setThumbnail(guild.iconURL({ extension: 'png', size: 128 }) ?? null)
-						.setFooter({ text: 'Page 1 of 1 | Total Visible Clans: 0' }),
+						.setThumbnail(guild.iconURL({ extension: 'png', size: 128 }) ?? null),
 				);
 			}
 
@@ -170,11 +164,10 @@ export class UpdateClanDirectory extends Task {
 	private async syncRoleIconsAsAppEmojis(
 		clans: ClanDirectoryData[],
 	): Promise<Map<string, { id: string; name: string }>> {
-		
 		const APPLICATION_ID = this.container.client.application!.id;
 		const rest = this.container.client.rest;
 		const emojiMap = new Map<string, { id: string; name: string }>();
-		
+
 		// download helper
 		const downloadBuffer = (url: string): Promise<Buffer> =>
 			new Promise((resolve, reject) => {
@@ -191,15 +184,19 @@ export class UpdateClanDirectory extends Task {
 
 		let existing: any[] = [];
 		try {
-			const response = (await rest.get(Routes.applicationEmojis(APPLICATION_ID))) as RESTGetAPIApplicationEmojisResult;
-		
+			const response = (await rest.get(
+				Routes.applicationEmojis(APPLICATION_ID),
+			)) as RESTGetAPIApplicationEmojisResult;
+
 			if (response && Array.isArray(response.items)) {
 				existing = response.items;
 			} else {
-				this.container.logger.warn('[ICON SYNC] Unexpected response format from applicationEmojis API', response);
+				this.container.logger.warn(
+					'[ICON SYNC] Unexpected response format from applicationEmojis API',
+					response,
+				);
 				existing = [];
 			}
-			
 		} catch (err) {
 			this.container.logger.error('[ICON SYNC] Failed to fetch existing application emojis:', err);
 			existing = [];
