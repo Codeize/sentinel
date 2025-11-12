@@ -196,15 +196,26 @@ export class UpdateClanDirectory extends Task {
 
 		let existing: any[] = [];
 		try {
-			existing = (await rest.get(Routes.applicationEmojis(APPLICATION_ID))) as any[];
+			
+			
+			const response = await rest.get(Routes.applicationEmojis(APPLICATION_ID));
+			if (Array.isArray(response)) {
+				existing = response;
+			} else {
+				this.container.logger.warn('[ICON SYNC] Fetched existing application emojis, but the response was not an array. Defaulting to empty array.', response);
+				existing = []; // Ensure 'existing' is always an array
+			}
+			
 		} catch (err) {
 			this.container.logger.error('[ICON SYNC] Failed to fetch existing application emojis:', err);
+			existing = []; // Also ensure 'existing' is an array on error
 		}
 
 		for (const clan of clans) {
 			if (!clan.iconHash) continue;
 
 			const emojiName = `role_${clan.customRoleId}`;
+			// This call is now safe because 'existing' is guaranteed to be an array.
 			const existingEmoji = existing.find((e) => e.name === emojiName);
 			if (existingEmoji) {
 				emojiMap.set(clan.customRoleId, { id: existingEmoji.id, name: emojiName });
