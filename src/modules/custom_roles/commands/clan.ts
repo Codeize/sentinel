@@ -468,9 +468,6 @@ export class ClanCommand extends Subcommand {
 				.setColor(targetClanRole.color || 'Blurple')
 				.setTitle(`📥 Clan Join Request: ${targetClanRole.name}`)
 				.setDescription(`${requester.user.tag} (${requester.toString()}) has requested to join your clan.`);
-			// .setThumbnail(requester.user.displayAvatarURL()) // Removed
-			// .addFields({ name: 'Members', value: `${clanMembers.size}/${MAX_MEMBERS_IN_CLAN}`, inline: true }) // Removed
-			// .setTimestamp(); // Removed
 
 			if (userMessage) {
 				embed.addFields({ name: 'Message', value: userMessage });
