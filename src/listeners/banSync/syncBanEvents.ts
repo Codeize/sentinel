@@ -83,13 +83,17 @@ export class BanAddChecker extends Listener<typeof Events.GuildBanAdd> {
 					continue;
 				}
 
+				const reasonRegex = /^\[[a-zA-Z0-9]+\] \d{2}\.\d{2}\.\d{4} — \d{2}:\d{2} @[^ ]+(?: \([^)]+\))?: (?<reason>.+)$/gu;
+				const reasonMatches = fullBan.reason?.match(reasonRegex);
+				const reason = reasonMatches?.groups?.reason ? reasonMatches.groups.reason : fullBan.reason;
+
 				this.container.logger.info(
 					`${header}  Banning user ${fullBan.user.tag} (${fullBan.user.id}) in guild ${guild.name} (${guild.id})`,
 				);
 
 				await guild.bans.create(maybeMember.id, {
 					deleteMessageSeconds: 0,
-					reason: `BAN SYNC(${fullBan.guild.name}): ${fullBan.reason ?? 'No reason'}`,
+					reason: `BAN SYNC(${fullBan.guild.name}): ${reason ?? 'No reason'}`,
 				});
 			}
 		}

@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
-import type { MessageComponentInteraction, RoleEditOptions } from 'discord.js';
+import type {MessageComponentInteraction, RoleColorsResolvable, RoleEditOptions} from 'discord.js';
 import looksSame, { type Color } from 'looks-same';
 import magicBytes from 'magic-bytes.js';
 import { ClanDeletionStatus, ClanManager } from '../../../lib/abilities/ClanManager.js';
@@ -117,6 +117,7 @@ export class CustomRoleCommand extends Subcommand {
 
 		const name = interaction.options.getString('name');
 		const rawColor = interaction.options.getString('color');
+		const rawColor2 = interaction.options.getString('color2');
 		const iconUrl = interaction.options.getString('icon-url');
 		const iconUpload = interaction.options.getAttachment('icon-upload');
 
@@ -139,8 +140,9 @@ export class CustomRoleCommand extends Subcommand {
 		}
 
 		const color = rawColor ? this.parseColor(rawColor) : undefined;
+		const color2 = color && rawColor2 ? this.parseColor(rawColor2) : undefined;
 
-		if (color === null) {
+		if (color === null || color2 === null) {
 			await interaction.editReply({
 				embeds: [createInfoEmbed('Invalid color provided. Please provide a valid hexadecimal color.')],
 			});
@@ -148,7 +150,7 @@ export class CustomRoleCommand extends Subcommand {
 			return;
 		}
 
-		if (color) {
+		if (color || color2) {
 			const staffColors: ColorMatch[] = (
 				(guildConfig?.staffRoles
 					.map((id) => {
@@ -167,28 +169,34 @@ export class CustomRoleCommand extends Subcommand {
 					.filter((role) => role !== null) as ColorMatch[]) ?? []
 			).concat(forbiddenColors());
 
-			this.similarityInColors(color, staffColors);
+			for (const code of [color, color2]) {
+				if (!code) {
+					continue;
+				}
 
-			if (staffColors.some((data) => data.matched)) {
-				this.container.logger.info(
-					`Color similarity data:`,
-					JSON.stringify({
-						userId: interaction.user.id,
-						guildId: interaction.guildId,
-						staffColors,
-						inputColor: color,
-					}),
-				);
+				this.similarityInColors(code, staffColors);
 
-				await interaction.editReply({
-					embeds: [
-						createInfoEmbed(
-							`Your premium custom role color is too similar to the staff roles. Please choose a different color.`,
-						),
-					],
-				});
+				if (staffColors.some((data) => data.matched)) {
+					this.container.logger.info(
+						`Color similarity data:`,
+						JSON.stringify({
+							userId: interaction.user.id,
+							guildId: interaction.guildId,
+							staffColors,
+							inputColor: code,
+						}),
+					);
 
-				return;
+					await interaction.editReply({
+						embeds: [
+							createInfoEmbed(
+								`Your premium custom role color #${code.toString(16)} is too similar to the staff roles. Please choose a different color.`,
+							),
+						],
+					});
+
+					return;
+				}
 			}
 		}
 
@@ -222,7 +230,7 @@ export class CustomRoleCommand extends Subcommand {
 
 		const roleData: RoleEditOptions = {
 			name: name ?? oldRole?.name,
-			color: color ?? oldRole?.color,
+			colors: color ? { primaryColor: color, secondaryColor: color2 } : oldRole?.colors as RoleColorsResolvable | undefined,
 			hoist: true,
 			// Only set position when creating, as this requires moving roles around, which at Valorant's scale means a fuck ton of events sent to everyone :>
 			position: oldRole ? undefined : position,
@@ -533,7 +541,13 @@ export class CustomRoleCommand extends Subcommand {
 						.addStringOption((color) =>
 							color
 								.setName('color')
-								.setDescription('The hexadecimal color of the custom role (#FFFFFF format)'),
+								.setDescription('The color of the custom role (#FFFFFF format)'),
+						)
+						.addStringOption((color) =>
+							color
+								.setName('color2')
+								.setDescription('The second color of the custom role, if you want a gradient (#FFFFFF format)')
+								.setRequired(false),
 						)
 						.addAttachmentOption((icon) =>
 							icon

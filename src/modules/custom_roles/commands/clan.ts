@@ -1,6 +1,22 @@
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { ChannelType } from 'discord-api-types/v10';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Collection, type MessageComponentInteraction } from 'discord.js';
+import {
+	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
+	Collection,
+	type MessageComponentInteraction,
+	AutocompleteInteraction,
+	type ApplicationCommandOptionChoiceData,
+	EmbedBuilder,
+	InteractionContextType,
+	PermissionsBitField,
+	time,
+	TimestampStyles,
+} from 'discord.js';
+import { PaginatedMessage } from '@sapphire/discord.js-utilities';
+import { chunk } from '@sapphire/utilities';
+
 import {
 	ClanCreationStatus,
 	ClanDeletionStatus,
@@ -11,10 +27,16 @@ import {
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
 import { createErrorEmbed, createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 import { waitForButtonConfirm } from '../../../lib/utils/waitForInteraction.js';
+import { trimPretty } from '../../../lib/utils/trim.js';
+import { makeClanJoinRequestId } from '../../../interaction-handlers/clan-join-request.js';
 
 const clanInviteCooldown = 60 * 60_000; // 60 seconds * 60 minutes * 24 hours = 1 hour
 const clanInviteDelayString = 'an hour';
 const cooldowns = new Collection<string, number>();
+
+const requestCooldowns = new Map<string, number>(); // 'requesterId' OR 'requesterId-clanOwnerId', timestamp when cooldown expires
+const GLOBAL_JOIN_COOLDOWN = 15 * 60 * 1000; // 15 minutes
+const SAME_CLAN_JOIN_COOLDOWN = 60 * 60 * 1000; // 1 hour
 
 export class ClanCommand extends Subcommand {
 	public subcommandMappings: SubcommandMappingArray = [
@@ -27,6 +49,11 @@ export class ClanCommand extends Subcommand {
 			type: 'method',
 			name: 'invite',
 			chatInputRun: 'inviteSubcommand',
+		},
+		{
+			type: 'method',
+			name: 'join',
+			chatInputRun: 'joinSubcommand',
 		},
 		{
 			type: 'method',
@@ -58,10 +85,32 @@ export class ClanCommand extends Subcommand {
 			name: 'unclaim-role',
 			chatInputRun: 'unclaimRoleSubcommand',
 		},
+		{
+			type: 'method',
+			name: 'set-description',
+			chatInputRun: 'setDescriptionSubcommand',
+		},
+		{
+			type: 'method',
+			name: 'public',
+			chatInputRun: 'publicSubcommand',
+		},
+		{
+			type: 'method',
+			name: 'private',
+			chatInputRun: 'privateSubcommand',
+		},
+		{
+			type: 'method',
+			name: 'members',
+			chatInputRun: 'membersSubcommand',
+		},
 	];
 
 	public async createSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		await interaction.deferReply({ ephemeral: true });
+
+		const description = interaction.options.getString('description');
 
 		const memberAbilities = new MemberAbilities(interaction.member);
 		const clanManager = new ClanManager(interaction.member);
@@ -73,14 +122,16 @@ export class ClanCommand extends Subcommand {
 		if (!oldClan && otherClans.length > 0 && !memberAbilities.hasAbility('areAbilitiesMultiGuild')) {
 			await interaction.editReply({
 				embeds: [
-					createInfoEmbed('You cannot create a clan in this server as you already have a clan in another server.'),
+					createInfoEmbed(
+						'You cannot create a clan in this server as you already have a clan in another server.',
+					),
 				],
 			});
 
 			return;
 		}
 
-		const clanCreationStatus = await clanManager.createClan();
+		const clanCreationStatus = await clanManager.createClan(description);
 
 		if (clanCreationStatus !== ClanCreationStatus.Created) {
 			await interaction.editReply({
@@ -290,6 +341,182 @@ export class ClanCommand extends Subcommand {
 		);
 	}
 
+	public async joinSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>): Promise<void> {
+		await interaction.deferReply({ ephemeral: true });
+
+		const targetClanOwnerId = interaction.options.getString('clan', true);
+
+		if (targetClanOwnerId === '__NONE__') {
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						'No visible clans matched your search. The clan you are looking for might be private or does not exist.',
+					),
+				],
+			});
+			return;
+		}
+
+		const userMessage = interaction.options.getString('message');
+		const requester = interaction.member;
+
+		const clanManager = new ClanManager(targetClanOwnerId, interaction.guildId);
+
+		// 1. Get Clan and Role
+		const clan = await clanManager.getClan();
+		const targetClanRole = await clanManager.getCustomRole();
+
+		// 2. Basic Checks
+		if (!clan || !targetClanRole) {
+			await interaction.editReply({ embeds: [createErrorEmbed('That role does not seem to belong to a clan.')] });
+			return;
+		}
+
+		if (requester.id === targetClanOwnerId) {
+			await interaction.editReply({ embeds: [createErrorEmbed('You cannot request to join your own clan.')] });
+			return;
+		}
+
+		const clanMembers = await clanManager.getClanMembers();
+		if (clanMembers.has(requester.id)) {
+			await interaction.editReply({
+				embeds: [createErrorEmbed(`You are already a member of **${targetClanRole.name}**.`)],
+			});
+			return;
+		}
+
+		// 4. Check if full (using ClanManager)
+		if (clanMembers.size >= MAX_MEMBERS_IN_CLAN) {
+			await interaction.editReply({
+				embeds: [createErrorEmbed(`Sorry, **${targetClanRole.name}** is currently full.`)],
+			});
+			return;
+		}
+
+		// 5. Cooldown check
+		const now = Date.now();
+		const globalCooldownKey = requester.id;
+		const sameClanCooldownKey = `${requester.id}-${targetClanOwnerId}`;
+
+		const globalCooldownExpires = requestCooldowns.get(globalCooldownKey) ?? 0;
+		const sameClanCooldownExpires = requestCooldowns.get(sameClanCooldownKey) ?? 0;
+
+		// Check same-clan cooldown first (it's longer)
+		if (now < sameClanCooldownExpires) {
+			const cooldownTimestamp = Math.floor(sameClanCooldownExpires / 1000);
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						`You must wait ${time(
+							cooldownTimestamp,
+							TimestampStyles.RelativeTime,
+						)} before sending another join request to this clan.`,
+					),
+				],
+			});
+			return;
+		}
+
+		// Check global cooldown
+		if (now < globalCooldownExpires) {
+			const cooldownTimestamp = Math.floor(globalCooldownExpires / 1000);
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						`You must wait ${time(
+							cooldownTimestamp,
+							TimestampStyles.RelativeTime,
+						)} before sending another join request.`,
+					),
+				],
+			});
+			return;
+		}
+
+		// --- Get Clan Channel (using ClanManager) ---
+		const clanChannel = await clanManager.getClanChannel();
+
+		if (!clanChannel) {
+			this.container.logger.error(
+				`[CLAN JOIN REQ] Clan channel not found for clan ${clan.customRoleId} in guild ${clan.guildId}`,
+			);
+			await interaction.editReply({
+				embeds: [createErrorEmbed('The clan channel could not be found. Please contact modmail.')],
+			});
+			return;
+		}
+
+		// Check bot permissions in clan channel
+		const me = interaction.guild.members.me;
+		if (!me || !clanChannel.permissionsFor(me)?.has(PermissionsBitField.Flags.SendMessages)) {
+			this.container.logger.error(
+				`[CLAN JOIN REQ] Bot lacks SendMessages permission in clan channel ${clanChannel.id} for guild ${clan.guildId}`,
+			);
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						'I do not have permission to send messages in the clan channel. Please contact modmail.',
+					),
+				],
+			});
+			return;
+		}
+
+		// --- Send Request in Clan Channel ---
+		try {
+			const embed = new EmbedBuilder()
+				.setColor(targetClanRole.color || 'Blurple')
+				.setTitle(`📥 Clan Join Request: ${targetClanRole.name}`)
+				.setDescription(`${requester.user.tag} (${requester.toString()}) has requested to join your clan.`);
+
+			if (userMessage) {
+				embed.addFields({ name: 'Message', value: userMessage });
+			}
+
+			const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				new ButtonBuilder()
+					.setCustomId(makeClanJoinRequestId('deny', requester.id, targetClanOwnerId, clan.customRoleId))
+					.setLabel('Deny')
+					.setStyle(ButtonStyle.Danger)
+					.setEmoji('🙅'),
+				new ButtonBuilder()
+					.setCustomId(makeClanJoinRequestId('accept', requester.id, targetClanOwnerId, clan.customRoleId))
+					.setLabel('Accept')
+					.setStyle(ButtonStyle.Success)
+					.setEmoji('✅'),
+			);
+
+			await clanChannel.send({
+				content: `<@${targetClanOwnerId}>`,
+				embeds: [embed],
+				components: [row],
+			});
+
+			this.container.logger.info(
+				`[CLAN JOIN REQ] Sent join request from ${requester.id} to clan channel ${clanChannel.id} for clan ${targetClanRole.name}`,
+			);
+
+			requestCooldowns.set(globalCooldownKey, now + GLOBAL_JOIN_COOLDOWN);
+			requestCooldowns.set(sameClanCooldownKey, now + SAME_CLAN_JOIN_COOLDOWN);
+
+			await interaction.editReply({
+				embeds: [
+					createInfoEmbed(
+						`✅ Your request to join **${targetClanRole.name}** has been sent in the clan channel.`,
+					),
+				],
+			});
+		} catch (error: any) {
+			this.container.logger.error(
+				`[CLAN JOIN REQ] Error sending request from ${requester.user.tag} to clan channel for ${targetClanRole.name}`,
+				error,
+			);
+			await interaction.editReply({
+				embeds: [createErrorEmbed(`Could not send the join request: ${error.message}`)],
+			});
+		}
+	}
+
 	public async kickSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		await interaction.deferReply({ ephemeral: true });
 
@@ -385,12 +612,14 @@ export class ClanCommand extends Subcommand {
 
 		if (clanOwnerId === interaction.user.id) {
 			const clanCommandId = interaction.client.application.commands.cache.find(
-				command => command.name === 'clan'
+				(command) => command.name === 'clan',
 			)?.id;
-			const clanCommandMention = clanCommandId ? `</clan delete:${clanCommandId}>` : '`/clan delete`'
+			const clanCommandMention = clanCommandId ? `</clan delete:${clanCommandId}>` : '`/clan delete`';
 
 			await interaction.editReply({
-				embeds: [createErrorEmbed(`You cannot leave your own clan. Did you mean to use ${clanCommandMention}?`)],
+				embeds: [
+					createErrorEmbed(`You cannot leave your own clan. Did you mean to use ${clanCommandMention}?`),
+				],
 			});
 
 			return;
@@ -534,19 +763,274 @@ export class ClanCommand extends Subcommand {
 		});
 	}
 
+	public async setDescriptionSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		await interaction.deferReply({ ephemeral: true });
+
+		const newDescription = interaction.options.getString('description', true);
+
+		const clanManager = new ClanManager(interaction.member);
+		const clan = await clanManager.getClan();
+
+		if (!clan) {
+			await interaction.editReply({
+				embeds: [createErrorEmbed('You do not own a clan.')],
+			});
+			return;
+		}
+
+		const customRoleId = await clanManager.getCustomRoleId();
+		if (clan.customRoleId !== customRoleId) {
+			// This case should ideally not happen if getClan() works correctly based on member,
+			// but it's a safeguard.
+			await interaction.editReply({
+				embeds: [createErrorEmbed('Could not verify clan ownership.')],
+			});
+			return;
+		}
+
+		try {
+			await this.container.prisma.clan.update({
+				where: {
+					guildId_customRoleId: {
+						guildId: clan.guildId,
+						customRoleId: clan.customRoleId,
+					},
+				},
+				data: {
+					description: newDescription,
+				},
+			});
+
+			clanManager.invalidateCache('clan');
+
+			await interaction.editReply({
+				embeds: [createInfoEmbed(`✅ Successfully updated your clan's description.`)],
+			});
+
+			// Optional: Trigger directory update immediately
+			const task = this.container.client.stores.get('tasks').get('UpdateClanDirectory');
+			if (task) {
+				this.container.logger.info(
+					`[CLAN SET DESCRIPTION] Triggering immediate directory update task for guild ${interaction.guildId}`,
+				);
+				void task.run();
+			}
+		} catch (error) {
+			this.container.logger.error(
+				`[CLAN SET DESCRIPTION] Failed to update description for clan ${clan.customRoleId} in guild ${clan.guildId}`,
+				error,
+			);
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						'An error occurred while trying to update the description. Please try again later.',
+					),
+				],
+			});
+		}
+	}
+
+	public async membersSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		await interaction.deferReply({ ephemeral: true });
+
+		const clanManager = new ClanManager(interaction.member);
+		const clan = await clanManager.getClan();
+
+		if (!clan) {
+			await interaction.editReply({
+				embeds: [createErrorEmbed('You do not own a clan.')],
+			});
+			return;
+		}
+
+		const clanRole = await clanManager.getCustomRole();
+		const clanName = clanRole ? clanRole.name : 'Your Clan';
+
+		const members = await clanManager.getDiscordClanMembers();
+
+		// --- Define Constants ---
+		const SEPARATOR = '<:valBlank:806719192191336448>';
+		// const CONNECTION1 = '<:C1:1436457103781920858>'; // Not used
+		const EMBED_COLOR = 0x27272f;
+		const titanIconURL = 'https://cdn.discordapp.com/emojis/1181684178467696680.png?size=128';
+		const thumbnailURL = clanRole?.iconURL({ extension: 'png', size: 128 }) ?? titanIconURL;
+		const embedTitle = `## ${clanName} Members (${members.size}/${MAX_MEMBERS_IN_CLAN})`;
+
+		// --- Handle No Members ---
+		if (members.size === 0) {
+			// This technically shouldn't happen, as the owner is always a member.
+			await interaction.editReply({
+				embeds: [
+					new EmbedBuilder()
+						.setColor(EMBED_COLOR)
+						.setThumbnail(thumbnailURL)
+						.setDescription(
+							`${embedTitle}\n${SEPARATOR}\nThis clan has no members. This is an error, please contact an admin.`,
+						),
+				],
+			});
+			return;
+		}
+
+		// --- Handle Single Member (Owner) ---
+		if (members.size === 1 && members.has(interaction.user.id)) {
+			const member = members.first()!;
+			const memberIcon = '⭐'; // Must be the owner
+			const entry = [`${memberIcon}  **${member.user.tag}** (${member.toString()})`].join('\n');
+
+			await interaction.editReply({
+				embeds: [
+					new EmbedBuilder()
+						.setColor(EMBED_COLOR)
+						.setThumbnail(thumbnailURL)
+						.setDescription(`${embedTitle}\n${SEPARATOR}\n${entry}`),
+				],
+			});
+			return;
+		}
+
+		// --- Handle Multiple Members (Paginated) ---
+		const memberList: string[] = [];
+
+		// Sort members to show owner first, then alphabetically
+		const sortedMembers = Array.from(members.values()).sort((a, b) => {
+			if (a.id === interaction.user.id) return -1;
+			if (b.id === interaction.user.id) return 1;
+			return a.user.tag.localeCompare(b.user.tag);
+		});
+
+		for (const member of sortedMembers) {
+			const isOwner = member.id === interaction.user.id;
+			const memberIcon = isOwner ? '⭐' : '👤'; // Using simple emoji for icon
+
+			const entry = [`${memberIcon}  **${member.user.tag}** (${member.toString()})`].join('\n');
+
+			memberList.push(entry);
+		}
+
+		const paginatedMessage = new PaginatedMessage({
+			template: new EmbedBuilder().setColor(EMBED_COLOR).setThumbnail(thumbnailURL),
+		});
+
+		const memberChunks = chunk(memberList, 5); // 5 members per page
+
+		for (const page of memberChunks) {
+			paginatedMessage.addPageEmbed((embed) =>
+				embed.setDescription(`${embedTitle}\n${SEPARATOR}\n` + page.join(`\n${SEPARATOR}\n`)),
+			);
+		}
+
+		await paginatedMessage.run(interaction);
+	}
+
+	public async publicSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		return this.setDirectoryVisibilitySubcommand(interaction, true);
+	}
+
+	public async privateSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		return this.setDirectoryVisibilitySubcommand(interaction, false);
+	}
+
+	public override async autocompleteRun(interaction: AutocompleteInteraction<'cached'>) {
+		const focusedOption = interaction.options.getFocused(true);
+		const input = focusedOption.value.toLowerCase();
+
+		if (focusedOption.name === 'clan') {
+			const visibleClans = await this.container.prisma.clan.findMany({
+				where: { guildId: interaction.guildId, isVisibleInDirectory: true },
+				take: 25,
+			});
+
+			if (!visibleClans.length) {
+				return interaction.respond([{ name: 'No visible clans found', value: '__NONE__' }]);
+			}
+
+			const allRoles = await interaction.guild.roles.fetch();
+			const clanRoles = allRoles.filter((role) => visibleClans.some((clan) => clan.customRoleId === role.id));
+
+			const premiumMembers = await this.container.prisma.premiumMember.findMany({
+				where: {
+					guildId: interaction.guildId,
+					customRoleId: { in: visibleClans.map((c) => c.customRoleId) },
+				},
+				select: { customRoleId: true, userId: true },
+			});
+
+			const ownerMap = new Map<string, string>();
+			for (const pm of premiumMembers) {
+				if (pm.customRoleId) ownerMap.set(pm.customRoleId, pm.userId);
+			}
+
+			const options: ApplicationCommandOptionChoiceData[] = [];
+			const addedRoles = new Set<string>();
+
+			// Prioritize matches
+			for (const role of clanRoles.values()) {
+				if (options.length >= 25) break;
+				if (addedRoles.has(role.id)) continue;
+
+				const ownerId = ownerMap.get(role.id);
+				if (!ownerId) continue;
+
+				if (role.name.toLowerCase().includes(input) || role.id === input || ownerId === input) {
+					options.push({ name: trimPretty(role.name, 97), value: ownerId }); // Value is now ownerId
+					addedRoles.add(role.id);
+				}
+			}
+
+			// Sort alphabetically for better UX
+			options.sort((a, b) => a.name.localeCompare(b.name));
+
+			return interaction.respond(options);
+		}
+
+		return interaction.respond([]);
+	}
+
 	public override registerApplicationCommands(registry: Subcommand.Registry) {
 		registry.registerChatInputCommand((builder) =>
 			builder
 				.setName(this.name)
 				.setDescription('Handle member clans.')
 				.setDMPermission(false)
-				.addSubcommand((subcommand) => subcommand.setName('create').setDescription('To create your clan'))
+				.setContexts(InteractionContextType.Guild)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('create')
+						.setDescription('To create your clan')
+						.addStringOption((option) =>
+							option
+								.setName('description')
+								.setDescription('A short description for your clan')
+								.setMinLength(1)
+								.setMaxLength(150),
+						),
+				)
 				.addSubcommand((subcommand) =>
 					subcommand
 						.setName('invite')
 						.setDescription('To invite other members to your clan')
 						.addUserOption((user) =>
 							user.setName('member').setDescription('The member to invite').setRequired(true),
+						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('join')
+						.setDescription('Requests to join a specific clan.')
+						.addStringOption((option) =>
+							option
+								.setName('clan')
+								.setDescription('The name or ID of the clan you want to join.')
+								.setRequired(true)
+								.setAutocomplete(true),
+						)
+						.addStringOption((option) =>
+							option
+								.setName('message')
+								.setDescription('An optional message to send with your request.')
+								.setMaxLength(1000)
+								.setRequired(false),
 						),
 				)
 				.addSubcommand((subcommand) =>
@@ -587,7 +1071,111 @@ export class ClanCommand extends Subcommand {
 						.setDescription(
 							'To claim the custom role linked to the clan that owns the current text channel.',
 						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('set-description')
+						.setDescription('Updates the description of your clan.')
+						.addStringOption((option) =>
+							option
+								.setName('description')
+								.setDescription('The new description for your clan (max 100 characters)')
+								.setMinLength(1)
+								.setMaxLength(100)
+								.setRequired(true),
+						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand.setName('public').setDescription('Makes your clan visible in the clan directory.'),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand.setName('private').setDescription('Hides your clan from the clan directory.'),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand.setName('members').setDescription('Lists all members currently in your clan.'),
 				),
 		);
+	}
+
+	private async setDirectoryVisibilitySubcommand(
+		interaction: Subcommand.ChatInputCommandInteraction<'cached'>,
+		newVisibilityState: boolean,
+	) {
+		await interaction.deferReply({ ephemeral: true });
+
+		const clanManager = new ClanManager(interaction.member);
+		const clan = await clanManager.getClan();
+
+		if (!clan) {
+			await interaction.editReply({
+				embeds: [createErrorEmbed('You do not own a clan.')],
+			});
+			return;
+		}
+
+		const customRoleId = await clanManager.getCustomRoleId();
+		if (clan.customRoleId !== customRoleId) {
+			await interaction.editReply({
+				embeds: [createErrorEmbed('Could not verify clan ownership.')],
+			});
+			return;
+		}
+
+		// Check if already in the desired state
+		if (clan.isVisibleInDirectory === newVisibilityState) {
+			await interaction.editReply({
+				embeds: [
+					createInfoEmbed(
+						`Your clan is already set to ${newVisibilityState ? '**visible**' : '**hidden**'} in the directory.`,
+					),
+				],
+			});
+			return;
+		}
+
+		try {
+			await this.container.prisma.clan.update({
+				where: {
+					guildId_customRoleId: {
+						guildId: clan.guildId,
+						customRoleId: clan.customRoleId,
+					},
+				},
+				data: {
+					isVisibleInDirectory: newVisibilityState,
+				},
+			});
+
+			clanManager.invalidateCache('clan');
+
+			await interaction.editReply({
+				embeds: [
+					createInfoEmbed(
+						`✅ Your clan will now be ${newVisibilityState ? '**visible**' : '**hidden**'} in the directory. The change will appear after the next update.`,
+					),
+				],
+			});
+
+			// Trigger directory update immediately / Optional
+			const task = this.container.client.stores.get('tasks').get('UpdateClanDirectory');
+			if (task) {
+				this.container.logger.info(
+					`[CLAN VISIBILITY] Triggering immediate directory update task for guild ${interaction.guildId}`,
+				);
+				void task.run();
+			}
+		} catch (error) {
+			this.container.logger.error(
+				`[CLAN VISIBILITY] Failed to update visibility for clan ${clan.customRoleId} in guild ${clan.guildId}`,
+				error,
+			);
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						'An error occurred while trying to update the directory visibility. Please try again later.',
+					),
+				],
+			});
+		}
 	}
 }
