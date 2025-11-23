@@ -7,9 +7,8 @@ import { Task } from '../lib/schedule/tasks/Task.js';
 import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 
 const header = '[CLAN DIRECTORY] ';
-const clansPerPage = 10;
 const MAX_EMBEDS_PER_MESSAGE = 10;
-const MAX_FIELDS_PER_EMBED = 25; // Discord embed field limit is 25
+const MAX_FIELDS_PER_EMBED = 25; // Safe check to avoid API error
 
 // Emojis and icons
 const CONNECTION1 = '<:ConnectionContinuing:1436843068438351944>';
@@ -94,7 +93,7 @@ export class UpdateClanDirectory extends Task {
 				});
 			}
 
-			allClansData.sort((a, b) => Number(a.customRoleId) - Number(b.customRoleId));
+			allClansData.sort((a, b) => (BigInt(a.customRoleId) < BigInt(b.customRoleId) ? -1 : 1));
 
 			const emojiMap = await this.syncRoleIconsAsAppEmojis(allClansData);
 			const embeds: EmbedBuilder[] = [];
@@ -106,7 +105,7 @@ export class UpdateClanDirectory extends Task {
 			// Add heading and thumbnail only to the first embed
 			if (isFirstEmbed) {
 				currentEmbed
-					.setDescription(`## ${guild.name} Clan Discovery\n${SEPARATOR}`)
+					.setDescription(`## ${guild.name} Clan Directory\n${SEPARATOR}`)
 					.setThumbnail(guild.iconURL({ extension: 'png', size: 128 }) ?? null);
 				isFirstEmbed = false;
 			}
@@ -153,7 +152,7 @@ export class UpdateClanDirectory extends Task {
 				embeds.push(
 					new EmbedBuilder()
 						.setColor(0x27272f)
-						.setDescription(`## ${guild.name} Clan Discovery\n${SEPARATOR}`)
+						.setDescription(`## ${guild.name} Clan Directory\n${SEPARATOR}`)
 						.setThumbnail(guild.iconURL({ extension: 'png', size: 128 }) ?? null)
 						.addFields({
 							name: ' ',
@@ -176,7 +175,6 @@ export class UpdateClanDirectory extends Task {
 						chunks.push(embeds.slice(i, i + MAX_EMBEDS_PER_MESSAGE));
 					}
 
-					
 					await message.edit({ embeds: chunks[0], components: [] });
 
 					// Clean up old follow-up messages
@@ -193,7 +191,6 @@ export class UpdateClanDirectory extends Task {
 						}
 					}
 
-					
 					for (let i = 1; i < chunks.length; i++) {
 						try {
 							await channel.send({ embeds: chunks[i] });
@@ -271,12 +268,10 @@ export class UpdateClanDirectory extends Task {
 			const iconChanged = storedIconHash !== clan.iconHash;
 
 			if (!clan.iconHash) {
-				// No icon set, skip
 				emojiMap.set(clan.customRoleId, existingEmoji ? { id: existingEmoji.id, name: emojiName } : null!);
 				continue;
 			}
 
-			// If emoji exists and icon hasn't changed, reuse it
 			if (existingEmoji && !iconChanged) {
 				emojiMap.set(clan.customRoleId, { id: existingEmoji.id, name: emojiName });
 				continue;
@@ -297,7 +292,10 @@ export class UpdateClanDirectory extends Task {
 						await rest.delete(Routes.applicationEmoji(APPLICATION_ID, existingEmoji.id));
 						this.container.logger.info(`[ICON SYNC] Deleted old emoji for clan ${clan.name}`);
 					} catch (err) {
-						this.container.logger.warn(`[ICON SYNC] Failed to delete old emoji for clan ${clan.name}:`, err);
+						this.container.logger.warn(
+							`[ICON SYNC] Failed to delete old emoji for clan ${clan.name}:`,
+							err,
+						);
 					}
 				}
 
@@ -309,7 +307,6 @@ export class UpdateClanDirectory extends Task {
 					`[ICON SYNC] ${iconChanged ? 'Updated' : 'Uploaded'} application emoji for ${clan.name}`,
 				);
 
-				// Store or update the icon hash
 				await this.container.prisma.clanEmojiCache.upsert({
 					where: { roleId: clan.customRoleId },
 					create: { roleId: clan.customRoleId, iconHash: clan.iconHash },
