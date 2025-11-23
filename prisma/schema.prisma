@@ -289,3 +289,10 @@ model ClanMember {
   @@id([clanGuildId, clanCustomRoleId, userId])
   @@map("clan_member")
 }
+
+model ClanEmojiCache {
+  roleId    String @id
+  iconHash  String
+  
+  @@map("clan_emoji_cache")
+}
