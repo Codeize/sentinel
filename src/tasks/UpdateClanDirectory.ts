@@ -7,8 +7,7 @@ import { Task } from '../lib/schedule/tasks/Task.js';
 import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 
 const header = '[CLAN DIRECTORY] ';
-const MAX_EMBEDS_PER_MESSAGE = 10;
-const MAX_FIELDS_PER_EMBED = 25; // Safe check
+const clansPerPage = 10; 
 
 // Emojis and icons
 const CONNECTION1 = '<:ConnectionContinuing:1436843068438351944>';
@@ -138,14 +137,16 @@ export class UpdateClanDirectory extends Task {
 				fieldCount += 2;
 			}
 
-			// Add footer only to the final embed
-			if (fieldCount > 0) {
-				currentEmbed.addFields({
-					name: ' ',
-					value: `-# Request to join a clan with \`/clan join\`. \n-# Want to create a clan? Check out our [**server subscriptions!**](https://discord.com/channels/679875946597056683/shop) (desktop only)`,
-					inline: false,
-				});
-				embeds.push(currentEmbed);
+				// Add footer only to the final embed
+				if (i + clansPerPage >= allClansData.length) {
+					embed.addFields({
+						name: ' ',
+						value: `-# Last updated <t:${Math.floor(Date.now() / 1000)}:R>`,
+						inline: false,
+					});
+				}
+
+				embeds.push(embed);
 			}
 
 			if (embeds.length === 0) {
@@ -203,6 +204,8 @@ export class UpdateClanDirectory extends Task {
 						`${header}Updated clan directory for ${guild.name} (${embeds.length} embeds across ${chunks.length} messages).`,
 					);
 				}
+
+				this.container.logger.info(`${header}Updated clan directory for ${guild.name} (${embeds.length} embeds).`);
 			} catch (error) {
 				this.container.logger.error(
 					`${header}Failed to edit clan directory for ${guild.name}`,
