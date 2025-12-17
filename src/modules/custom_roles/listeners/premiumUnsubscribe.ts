@@ -70,7 +70,9 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 			}
 
 			if (canNoLongerGiftLegend && guildConfig?.legendRoleId && premiumMember?.giftedRoleToUserId) {
-				const giftedUser = await newMember.guild.members.fetch(premiumMember.giftedRoleToUserId).catch(() => null);
+				const giftedUser = await newMember.guild.members
+					.fetch(premiumMember.giftedRoleToUserId)
+					.catch(() => null);
 
 				if (giftedUser) {
 					try {

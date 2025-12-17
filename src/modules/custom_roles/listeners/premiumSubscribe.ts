@@ -28,7 +28,8 @@ export class PremiumSubscribe extends Listener<typeof Events.GuildMemberUpdate> 
 
 		const clanManager = new ClanManager(newMember);
 		const clan = await clanManager.getClan();
-		const canNowCreateClan = !oldMemberAbilities.hasAbility('canCreateClan') && newMemberAbilities.hasAbility('canCreateClan');
+		const canNowCreateClan =
+			!oldMemberAbilities.hasAbility('canCreateClan') && newMemberAbilities.hasAbility('canCreateClan');
 
 		// If user has a clan, we can end the cooldown and un-orphan the clan
 		if (canNowCreateClan && clan) {

@@ -5,23 +5,24 @@
 **Flokie Utils Bot** is a production Discord utility bot built with TypeScript, discord.js v14, and the Sapphire Framework. It provides server moderation, community engagement, and premium features including a clan system. The bot uses PostgreSQL with Prisma ORM for data persistence.
 
 **Key Features:**
-- Vote kick system for voice channel moderation
-- Auto-pinned messages with scheduled updates
-- Poll creation and management
-- Media-only channel enforcement
-- Role and ban synchronization across guilds
-- Premium clan system with custom roles and channels
-- Role-based notification system
-- Invite pruning and moderation tools
+
+-   Vote kick system for voice channel moderation
+-   Auto-pinned messages with scheduled updates
+-   Poll creation and management
+-   Media-only channel enforcement
+-   Role and ban synchronization across guilds
+-   Premium clan system with custom roles and channels
+-   Role-based notification system
+-   Invite pruning and moderation tools
 
 ## Technology Stack
 
-- **Runtime:** Node.js v16+ (LTS recommended)
-- **Language:** TypeScript (ES2022 target, strict mode)
-- **Framework:** Sapphire Framework v5 (@sapphire/framework)
-- **Discord Library:** discord.js v14.22.1
-- **Database:** PostgreSQL with Prisma ORM v5.8.1
-- **Code Quality:** ESLint + Prettier (neon config)
+-   **Runtime:** Node.js v16+ (LTS recommended)
+-   **Language:** TypeScript (ES2022 target, strict mode)
+-   **Framework:** Sapphire Framework v5 (@sapphire/framework)
+-   **Discord Library:** discord.js v14.22.1
+-   **Database:** PostgreSQL with Prisma ORM v5.8.1
+-   **Code Quality:** ESLint + Prettier (neon config)
 
 ## Project Structure
 
@@ -46,22 +47,23 @@ src/
 
 ### Key Directories Explained
 
-- **`commands/`**: Slash commands in the root directory are core bot features
-- **`modules/`**: Self-contained feature modules with their own commands/listeners/handlers
-- **`listeners/`**: Event-based logic (message creates, deletes, reactions, etc.)
-- **`tasks/`**: Scheduled jobs managed by ScheduleManager
-- **`interaction-handlers/`**: Handle Discord component interactions (buttons, select menus)
-- **`lib/abilities/`**: Permission checking system for clans and role management
+-   **`commands/`**: Slash commands in the root directory are core bot features
+-   **`modules/`**: Self-contained feature modules with their own commands/listeners/handlers
+-   **`listeners/`**: Event-based logic (message creates, deletes, reactions, etc.)
+-   **`tasks/`**: Scheduled jobs managed by ScheduleManager
+-   **`interaction-handlers/`**: Handle Discord component interactions (buttons, select menus)
+-   **`lib/abilities/`**: Permission checking system for clans and role management
 
 ## Architecture Patterns
 
 ### Sapphire Framework
 
 The bot uses the Sapphire Framework, which provides:
-- **Piece-based architecture**: Commands, listeners, and handlers are auto-loaded
-- **Plugin system**: Subcommands plugin for complex command structures
-- **Preconditions**: Permission checks before command execution
-- **Utilities**: Decorators, paginated messages, and Discord helpers
+
+-   **Piece-based architecture**: Commands, listeners, and handlers are auto-loaded
+-   **Plugin system**: Subcommands plugin for complex command structures
+-   **Preconditions**: Permission checks before command execution
+-   **Utilities**: Decorators, paginated messages, and Discord helpers
 
 ### Command Structure
 
@@ -69,15 +71,13 @@ Commands use the Sapphire `Command` class with slash command support:
 
 ```typescript
 export class MyCommand extends Command {
-  public override registerApplicationCommands(registry: Command.Registry) {
-    registry.registerChatInputCommand((builder) =>
-      builder.setName('mycommand').setDescription('Does something')
-    );
-  }
+	public override registerApplicationCommands(registry: Command.Registry) {
+		registry.registerChatInputCommand((builder) => builder.setName('mycommand').setDescription('Does something'));
+	}
 
-  public override async chatInputRun(interaction: Command.ChatInputCommandInteraction) {
-    // Command logic here
-  }
+	public override async chatInputRun(interaction: Command.ChatInputCommandInteraction) {
+		// Command logic here
+	}
 }
 ```
 
@@ -85,31 +85,30 @@ For complex commands with subcommands, use `@sapphire/plugin-subcommands`:
 
 ```typescript
 export class MySubcommandCommand extends Subcommand {
-  public override registerApplicationCommands(registry: Subcommand.Registry) {
-    registry.registerChatInputCommand((builder) =>
-      builder
-        .setName('mycommand')
-        .setDescription('Command with subcommands')
-        .addSubcommand((sub) =>
-          sub.setName('create').setDescription('Create something')
-        )
-    );
-  }
+	public override registerApplicationCommands(registry: Subcommand.Registry) {
+		registry.registerChatInputCommand((builder) =>
+			builder
+				.setName('mycommand')
+				.setDescription('Command with subcommands')
+				.addSubcommand((sub) => sub.setName('create').setDescription('Create something')),
+		);
+	}
 
-  @RegisterSubcommand('create', (builder) => builder.setDescription('Create'))
-  public async create(interaction: Subcommand.ChatInputCommandInteraction) {
-    // Subcommand logic
-  }
+	@RegisterSubcommand('create', (builder) => builder.setDescription('Create'))
+	public async create(interaction: Subcommand.ChatInputCommandInteraction) {
+		// Subcommand logic
+	}
 }
 ```
 
 ### Module System
 
 Modules are self-contained features in `src/modules/`. Each module can have:
-- `commands/`: Module-specific slash commands
-- `listeners/`: Module-specific event listeners
-- `interaction-handlers/`: Module-specific button/menu handlers
-- Shared utilities or logic within the module directory
+
+-   `commands/`: Module-specific slash commands
+-   `listeners/`: Module-specific event listeners
+-   `interaction-handlers/`: Module-specific button/menu handlers
+-   Shared utilities or logic within the module directory
 
 Modules are automatically loaded by Sapphire's piece system.
 
@@ -134,11 +133,12 @@ The bot has a custom `ScheduleManager` for scheduling tasks:
 4. Tasks can be recurring or one-time
 
 Example:
+
 ```typescript
 export class MyTask extends Task {
-  public async run(): Promise<void> {
-    // Task logic
-  }
+	public async run(): Promise<void> {
+		// Task logic
+	}
 }
 
 // Schedule a task
@@ -149,19 +149,19 @@ await ScheduleManager.schedule(MyTask, guildId, date, data);
 
 Key Prisma models:
 
-- **`Schedule`**: Scheduled task entries (task name, time, data)
-- **`VoteKick`**: Vote kick records with voter tracking
-- **`User`**: User kick counts and timeout tracking
-- **`AutoPin`**: Auto-pinned messages with scheduling info
-- **`Poll`**, **`PollAnswer`**: Poll data and user responses
-- **`MessageOnlyChannel`**: Channels requiring media attachments
-- **`RoleSync`**: Cross-guild role synchronization
-- **`SharedGuildBan`**: Synchronized bans across guilds
-- **`PremiumMember`**, **`PremiumGuildRoleConfig`**: Premium features
-- **`Clan`**, **`ClanMember`**: Clan system
-- **`ClanEmojiCache`**: Caches clan role icon hashes to detect changes and avoid unnecessary re-uploads
-- **`RoleAbilities`**: Permission management for roles
-- **`Notification`**, **`UserNotification`**: Notification system
+-   **`Schedule`**: Scheduled task entries (task name, time, data)
+-   **`VoteKick`**: Vote kick records with voter tracking
+-   **`User`**: User kick counts and timeout tracking
+-   **`AutoPin`**: Auto-pinned messages with scheduling info
+-   **`Poll`**, **`PollAnswer`**: Poll data and user responses
+-   **`MessageOnlyChannel`**: Channels requiring media attachments
+-   **`RoleSync`**: Cross-guild role synchronization
+-   **`SharedGuildBan`**: Synchronized bans across guilds
+-   **`PremiumMember`**, **`PremiumGuildRoleConfig`**: Premium features
+-   **`Clan`**, **`ClanMember`**: Clan system
+-   **`ClanEmojiCache`**: Caches clan role icon hashes to detect changes and avoid unnecessary re-uploads
+-   **`RoleAbilities`**: Permission management for roles
+-   **`Notification`**, **`UserNotification`**: Notification system
 
 ### Running Migrations
 
@@ -219,21 +219,23 @@ npm start
 
 ### Scripts
 
-- `npm start`: Clean build and run the bot
-- `npm run build`: Compile TypeScript to `dist/`
-- `npm run cleanbuild`: Remove `dist/` and rebuild
-- `npm run watch`: Watch mode for development
-- `npm run lint`: Check code style with ESLint
-- `npm run format`: Auto-format code with Prettier and ESLint
+-   `npm start`: Clean build and run the bot
+-   `npm run build`: Compile TypeScript to `dist/`
+-   `npm run cleanbuild`: Remove `dist/` and rebuild
+-   `npm run watch`: Watch mode for development
+-   `npm run lint`: Check code style with ESLint
+-   `npm run format`: Auto-format code with Prettier and ESLint
 
 ### Testing & Deployment
 
 **Testing Approach**: Manual testing in Discord
-- Test new commands and features in a test server or channel
-- Verify database changes don't break existing functionality
-- Check error handling and edge cases
+
+-   Test new commands and features in a test server or channel
+-   Verify database changes don't break existing functionality
+-   Check error handling and edge cases
 
 **Deployment**:
+
 1. Build the project: `npm run cleanbuild`
 2. Run migrations: `npx prisma migrate deploy`
 3. Restart the bot (PM2 or manual restart)
@@ -273,17 +275,19 @@ npm start
 ### Clan System (`modules/custom_roles`)
 
 The clan system allows premium members to create clans with:
-- Custom clan roles (with color validation to prevent conflicts)
-- Clan-specific channels
-- Member management (join requests, kicks, ownership transfer)
-- Automatic directory updates
-- Orphan clan cleanup
+
+-   Custom clan roles (with color validation to prevent conflicts)
+-   Clan-specific channels
+-   Member management (join requests, kicks, ownership transfer)
+-   Automatic directory updates
+-   Orphan clan cleanup
 
 **Key Components:**
-- **Commands**: `/clan`, `/custom-role`, `/gift`, `/config-premium`
-- **Abilities**: `ClanManager` handles permission checks
-- **Tasks**: `UpdateClanDirectory`, `deleteOrphanClan`
-- **Database**: `Clan`, `ClanMember`, `PremiumMember`, `RoleAbilities`, `ClanEmojiCache`
+
+-   **Commands**: `/clan`, `/custom-role`, `/gift`, `/config-premium`
+-   **Abilities**: `ClanManager` handles permission checks
+-   **Tasks**: `UpdateClanDirectory`, `deleteOrphanClan`
+-   **Database**: `Clan`, `ClanMember`, `PremiumMember`, `RoleAbilities`, `ClanEmojiCache`
 
 **Color Validation**: Uses `looks-same` library to prevent clan roles from having similar colors to staff roles.
 
@@ -292,42 +296,46 @@ The clan system allows premium members to create clans with:
 ### Vote Kick System
 
 Democratic voice channel moderation:
-- Users in a voice channel can vote to kick someone
-- Configurable vote thresholds
-- Cooldowns and tracking in database
-- Automatic cleanup of expired votes
+
+-   Users in a voice channel can vote to kick someone
+-   Configurable vote thresholds
+-   Cooldowns and tracking in database
+-   Automatic cleanup of expired votes
 
 ### Auto-Pin System
 
 Recurring messages that stay pinned to the bottom of a channel:
-- Messages automatically reposted at intervals
-- Can be configured per channel
-- Scheduled via `ScheduleManager`
+
+-   Messages automatically reposted at intervals
+-   Can be configured per channel
+-   Scheduled via `ScheduleManager`
 
 ### Abilities/Permission System (`lib/abilities`)
 
 Custom permission system for managing role-based abilities:
-- Guild-specific and multi-guild abilities
-- Role color validation
-- Forbidden role name checking
-- Used primarily for clan and custom role management
+
+-   Guild-specific and multi-guild abilities
+-   Role color validation
+-   Forbidden role name checking
+-   Used primarily for clan and custom role management
 
 ## Performance Considerations
 
 The bot has custom Discord.js cache settings to reduce memory usage:
-- **Message cache**: Limited to 50 messages
-- **User cache**: Limited to 100 users (bot user never removed)
-- **Sweepers**: Configured for automatic cleanup of old cache entries
+
+-   **Message cache**: Limited to 50 messages
+-   **User cache**: Limited to 100 users (bot user never removed)
+-   **Sweepers**: Configured for automatic cleanup of old cache entries
 
 These settings are in `src/lib/UtilsBot.ts`.
 
 ## Code Style & Standards
 
-- **TypeScript**: Strict mode enabled, ES2022 target
-- **ESLint**: Uses `@neon-utils/prettier-config` and `@neon-utils/eslint-config-ts`
-- **Formatting**: Prettier with 2-space tabs, single quotes, trailing commas
-- **Imports**: Organized and explicit, no wildcard imports
-- **Error Handling**: Use `UserError` class for user-facing errors
+-   **TypeScript**: Strict mode enabled, ES2022 target
+-   **ESLint**: Uses `@neon-utils/prettier-config` and `@neon-utils/eslint-config-ts`
+-   **Formatting**: Prettier with 2-space tabs, single quotes, trailing commas
+-   **Imports**: Organized and explicit, no wildcard imports
+-   **Error Handling**: Use `UserError` class for user-facing errors
 
 ### Error Handling Pattern
 
@@ -343,23 +351,24 @@ throw new Error('Unexpected database error');
 
 ## Important Notes
 
-- **Production bot**: Changes affect live users, test thoroughly
-- **No major gotchas**: Codebase is straightforward and well-structured
-- **Prisma queries**: Be mindful of N+1 queries and use `include` strategically
-- **Discord rate limits**: Use built-in discord.js rate limit handling
-- **Scheduled tasks**: Tasks run in-process, long-running tasks should be async
-- **Caching**: Be aware of Discord cache limitations, refetch data when needed
+-   **Production bot**: Changes affect live users, test thoroughly
+-   **No major gotchas**: Codebase is straightforward and well-structured
+-   **Prisma queries**: Be mindful of N+1 queries and use `include` strategically
+-   **Discord rate limits**: Use built-in discord.js rate limit handling
+-   **Scheduled tasks**: Tasks run in-process, long-running tasks should be async
+-   **Caching**: Be aware of Discord cache limitations, refetch data when needed
 
 ## Resources
 
-- [Sapphire Framework Docs](https://www.sapphirejs.dev/)
-- [discord.js Guide](https://discordjs.guide/)
-- [Prisma Documentation](https://www.prisma.io/docs/)
-- [Discord API Types](https://discord-api-types.dev/)
+-   [Sapphire Framework Docs](https://www.sapphirejs.dev/)
+-   [discord.js Guide](https://discordjs.guide/)
+-   [Prisma Documentation](https://www.prisma.io/docs/)
+-   [Discord API Types](https://discord-api-types.dev/)
 
 ## Getting Help
 
 For questions or issues:
-- Check the Sapphire Framework documentation
-- Review similar existing commands/listeners for patterns
-- The codebase is well-organized - look at similar features for guidance
+
+-   Check the Sapphire Framework documentation
+-   Review similar existing commands/listeners for patterns
+-   The codebase is well-organized - look at similar features for guidance

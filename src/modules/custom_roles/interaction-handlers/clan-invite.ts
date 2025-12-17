@@ -84,7 +84,9 @@ export class ClanInvite extends InteractionHandler {
 					components: [],
 				})
 				.catch((error) =>
-					this.container.logger.error(`[CLAN ${clanOwner.id}] (invite 2.30) Failed to update button interaction: ${error}`),
+					this.container.logger.error(
+						`[CLAN ${clanOwner.id}] (invite 2.30) Failed to update button interaction: ${error}`,
+					),
 				);
 
 			return;
@@ -96,7 +98,9 @@ export class ClanInvite extends InteractionHandler {
 				components: [],
 			})
 			.catch((error) =>
-				this.container.logger.error(`[CLAN ${clanOwner.id}] (invite 2.40) Failed to update button interaction: ${error}`),
+				this.container.logger.error(
+					`[CLAN ${clanOwner.id}] (invite 2.40) Failed to update button interaction: ${error}`,
+				),
 			);
 
 		await (await clanManager.getClanChannel())
@@ -104,7 +108,9 @@ export class ClanInvite extends InteractionHandler {
 				`<@${data.invitedUser}> has joined the clan! ${welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)]}`,
 			)
 			.catch((error) =>
-				this.container.logger.error(`[CLAN ${clanOwner.id}] (invite 2.50) Failed to update button interaction: ${error}`),
+				this.container.logger.error(
+					`[CLAN ${clanOwner.id}] (invite 2.50) Failed to update button interaction: ${error}`,
+				),
 			);
 	}
 }

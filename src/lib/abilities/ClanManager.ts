@@ -2,7 +2,7 @@ import type { Clan, ClanMember, PremiumMember } from '@prisma/client';
 import { container } from '@sapphire/framework';
 import { Duration } from '@sapphire/time-utilities';
 import { ChannelType } from 'discord-api-types/v10';
-import type {CategoryChannel, Guild, GuildMember, NonThreadGuildBasedChannel, Role, TextChannel} from 'discord.js';
+import type { CategoryChannel, Guild, GuildMember, NonThreadGuildBasedChannel, Role, TextChannel } from 'discord.js';
 import { Collection } from 'discord.js';
 import { ensureFullMember } from '../utils.js';
 import { MemberAbilities } from './MemberAbilities.js';
@@ -545,20 +545,17 @@ export class ClanManager {
 		const channel = await this.getClanChannel();
 
 		if (!channel) {
-			container.logger.error(
-				`[CLAN ${this.userId}] Clan channel does not seem to exist anymore.`,
-			);
+			container.logger.error(`[CLAN ${this.userId}] Clan channel does not seem to exist anymore.`);
 
 			return;
 		}
 
-		await this.giveOwnerPermissions(channel, this.userId)
-			.catch((error: Error) => {
-				container.logger.error(
-					`[CLAN ${this.userId}] Restoring clan channel permissions setting for owner failed: `,
-					error,
-				);
-			});
+		await this.giveOwnerPermissions(channel, this.userId).catch((error: Error) => {
+			container.logger.error(
+				`[CLAN ${this.userId}] Restoring clan channel permissions setting for owner failed: `,
+				error,
+			);
+		});
 	}
 
 	public async deleteOrphanClan(): Promise<void> {
@@ -775,14 +772,10 @@ export class ClanManager {
 				);
 			});
 
-		await this.giveOwnerPermissions(clanChannel, this.userId)
-			.catch((error: Error) => {
-				errorHappened = true;
-				container.logger.info(
-					`[CLAN ${this.userId}] Clan channel permissions setting for owner failed: `,
-					error,
-				);
-			});
+		await this.giveOwnerPermissions(clanChannel, this.userId).catch((error: Error) => {
+			errorHappened = true;
+			container.logger.info(`[CLAN ${this.userId}] Clan channel permissions setting for owner failed: `, error);
+		});
 
 		if (errorHappened) {
 			await clanChannel.delete();
@@ -793,14 +786,13 @@ export class ClanManager {
 	}
 
 	private async giveOwnerPermissions(channel: TextChannel, ownerId: string): Promise<NonThreadGuildBasedChannel> {
-		return channel.permissionOverwrites
-			.edit(ownerId, {
-				ViewChannel: true,
-				ManageChannels: true,
-				ManageMessages: true,
-				CreatePrivateThreads: true,
-				MentionEveryone: true,
-			});
+		return channel.permissionOverwrites.edit(ownerId, {
+			ViewChannel: true,
+			ManageChannels: true,
+			ManageMessages: true,
+			CreatePrivateThreads: true,
+			MentionEveryone: true,
+		});
 	}
 
 	private async getPremiumMember(): Promise<PremiumMember | null> {

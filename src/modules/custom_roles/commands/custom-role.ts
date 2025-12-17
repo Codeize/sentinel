@@ -1,14 +1,14 @@
 import { Buffer } from 'node:buffer';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
-import type {MessageComponentInteraction, RoleColorsResolvable, RoleEditOptions} from 'discord.js';
+import type { MessageComponentInteraction, RoleColorsResolvable, RoleEditOptions } from 'discord.js';
 import looksSame, { type Color } from 'looks-same';
 import magicBytes from 'magic-bytes.js';
 import { ClanDeletionStatus, ClanManager } from '../../../lib/abilities/ClanManager.js';
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
 import { RoleAbilitiesCalculator } from '../../../lib/abilities/RoleAbilities.js';
-import { ensureFullMember } from '../../../lib/utils.js';
 import { createErrorEmbed, createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 import { waitForButtonConfirm } from '../../../lib/utils/waitForInteraction.js';
+import { ensureFullMember } from '../../../lib/utils.js';
 
 // tolerance will be something that we need to definitely tweak over time. Right now it's pretty loose, you need to be reaaal close to the staff colors to be rejected
 const kTolerance = 2.5;
@@ -93,7 +93,7 @@ export class CustomRoleCommand extends Subcommand {
 			where: { guildId: { not: interaction.guildId }, userId: interaction.user.id },
 		});
 		const customRolesFromOtherGuilds = premiumMemberFromOtherGuilds
-			?.map(premiumMember => premiumMember?.customRoleId)
+			?.map((premiumMember) => premiumMember?.customRoleId)
 			?.filter(Boolean);
 
 		const premiumRoles = [...interaction.guild.roles.cache.values()].filter((role) =>
@@ -108,10 +108,16 @@ export class CustomRoleCommand extends Subcommand {
 		const oldRole = interaction.guild.roles.cache.get(premiumMember?.customRoleId ?? '') ?? null;
 		const position = (positionRole?.position ?? lowestPremiumRole?.position ?? 0) + 1;
 
-		if (!oldRole && customRolesFromOtherGuilds.length > 0 && !memberAbilities.hasAbility('areAbilitiesMultiGuild')) {
+		if (
+			!oldRole &&
+			customRolesFromOtherGuilds.length > 0 &&
+			!memberAbilities.hasAbility('areAbilitiesMultiGuild')
+		) {
 			await interaction.editReply({
 				embeds: [
-					createInfoEmbed('You cannot create a custom role in this server as you already have a custom role in another server.'),
+					createInfoEmbed(
+						'You cannot create a custom role in this server as you already have a custom role in another server.',
+					),
 				],
 			});
 
@@ -233,7 +239,10 @@ export class CustomRoleCommand extends Subcommand {
 
 		const roleData: RoleEditOptions = {
 			name: name ?? oldRole?.name,
-			colors: color ? { primaryColor: color, secondaryColor: color2 } : oldRole?.colors as RoleColorsResolvable | undefined,
+			colors:
+				color ?
+					{ primaryColor: color, secondaryColor: color2 }
+				:	(oldRole?.colors as RoleColorsResolvable | undefined),
 			hoist: true,
 			// Only set position when creating, as this requires moving roles around, which at Valorant's scale means a fuck ton of events sent to everyone :>
 			position: oldRole ? undefined : position,
@@ -409,9 +418,7 @@ export class CustomRoleCommand extends Subcommand {
 
 		if (!oldRole) {
 			await interaction.editReply({
-				embeds: [
-					createInfoEmbed('You do not have a premium custom role.'),
-				],
+				embeds: [createInfoEmbed('You do not have a premium custom role.')],
 			});
 
 			return;
@@ -473,7 +480,7 @@ export class CustomRoleCommand extends Subcommand {
 					userId: interaction.user.id,
 					guildId: interaction.guildId,
 					error,
-				}
+				},
 			);
 
 			await newInteraction.editReply({
@@ -492,7 +499,7 @@ export class CustomRoleCommand extends Subcommand {
 		try {
 			await this.container.prisma.premiumMember.delete({
 				where: {
-					guildId_userId: { guildId: interaction.guildId, userId: interaction.user.id }
+					guildId_userId: { guildId: interaction.guildId, userId: interaction.user.id },
 				},
 			});
 
@@ -502,17 +509,20 @@ export class CustomRoleCommand extends Subcommand {
 					createInfoEmbed(
 						hasClan ?
 							`Your premium custom role and clan have been deleted.`
-							: `Your premium custom role has been deleted.`,
+						:	`Your premium custom role has been deleted.`,
 					),
 				],
 				components: [],
 			});
 		} catch (error) {
-			this.container.logger.error(`[CUSTOM ROLE] ${interaction.member.user.username} failed to delete from the database.`, {
-				userId: interaction.user.id,
-				guildId: interaction.guildId,
-				error,
-			});
+			this.container.logger.error(
+				`[CUSTOM ROLE] ${interaction.member.user.username} failed to delete from the database.`,
+				{
+					userId: interaction.user.id,
+					guildId: interaction.guildId,
+					error,
+				},
+			);
 
 			await newInteraction.editReply({
 				content: '',
@@ -544,14 +554,14 @@ export class CustomRoleCommand extends Subcommand {
 								.setMaxLength(100),
 						)
 						.addStringOption((color) =>
-							color
-								.setName('color')
-								.setDescription('The color of the custom role (#FFFFFF format)'),
+							color.setName('color').setDescription('The color of the custom role (#FFFFFF format)'),
 						)
 						.addStringOption((color) =>
 							color
 								.setName('color2')
-								.setDescription('The second color of the custom role, if you want a gradient (#FFFFFF format)')
+								.setDescription(
+									'The second color of the custom role, if you want a gradient (#FFFFFF format)',
+								)
 								.setRequired(false),
 						)
 						.addAttachmentOption((icon) =>

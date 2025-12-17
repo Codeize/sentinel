@@ -83,7 +83,8 @@ export class BanAddChecker extends Listener<typeof Events.GuildBanAdd> {
 					continue;
 				}
 
-				const reasonRegex = /^\[[a-zA-Z0-9]+\] \d{2}\.\d{2}\.\d{4} — \d{2}:\d{2} @[^ ]+(?: \([^)]+\))?: (?<reason>.+)$/gu;
+				const reasonRegex =
+					/^\[[a-zA-Z0-9]+\] \d{2}\.\d{2}\.\d{4} — \d{2}:\d{2} @[^ ]+(?: \([^)]+\))?: (?<reason>.+)$/gu;
 				const reasonMatches = fullBan.reason?.match(reasonRegex);
 				const reason = reasonMatches?.groups?.reason ? reasonMatches.groups.reason : fullBan.reason;
 

@@ -1,7 +1,13 @@
 import { container } from '@sapphire/framework';
 import { DurationFormatter, Timestamp } from '@sapphire/time-utilities';
-import { Message, type PartialGuildMember } from 'discord.js';
-import type { User, GatewayMessageCreateDispatchData, Interaction, GuildMember } from 'discord.js';
+import {
+	Message,
+	type PartialGuildMember,
+	type User,
+	type GatewayMessageCreateDispatchData,
+	type Interaction,
+	type GuildMember,
+} from 'discord.js';
 
 export const timeFormat = new Timestamp('YYYY-MM-DD [at] HH:mm:ss [UTC]');
 

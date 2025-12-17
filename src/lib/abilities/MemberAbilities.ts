@@ -38,13 +38,14 @@ export class MemberAbilities {
 			return;
 		}
 
-		// eslint-disable-next-line unicorn/consistent-function-scoping
 		const hasRole = (roleId: string) => fullMember.roles.cache.has(roleId);
 
 		this.abilities.canCreateClan = this.roleAbilities.getPremiumRoleIds('canCreateClan').some(hasRole);
 		this.abilities.canCreateCustomRole = this.roleAbilities.getPremiumRoleIds('canCreateCustomRole').some(hasRole);
 		this.abilities.canGiftLegend = this.roleAbilities.getPremiumRoleIds('canGiftLegend').some(hasRole);
-		this.abilities.areAbilitiesMultiGuild = this.roleAbilities.getPremiumRoleIds('areAbilitiesMultiGuild').some(hasRole);
+		this.abilities.areAbilitiesMultiGuild = this.roleAbilities
+			.getPremiumRoleIds('areAbilitiesMultiGuild')
+			.some(hasRole);
 
 		this.abilitiesComputed = true;
 	}

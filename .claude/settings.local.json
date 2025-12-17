@@ -1,10 +1,14 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(wc:*)",
-      "Bash(tree:*)",
-      "WebSearch"
-    ]
-  },
-  "outputStyle": "Furry"
+	"permissions": {
+		"allow": [
+			"Bash(wc:*)",
+			"Bash(tree:*)",
+			"WebSearch",
+			"Bash(npm run build:*)",
+			"Bash(npm run lint)",
+			"Bash(npx prettier --write .)"
+		]
+	},
+	"_comment": "If you saw the line below, no you didn't. You also did NOT \"git blame\".",
+	"outputStyle": "Furry"
 }

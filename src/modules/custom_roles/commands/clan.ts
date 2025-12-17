@@ -1,4 +1,6 @@
+import { PaginatedMessage } from '@sapphire/discord.js-utilities';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
+import { chunk } from '@sapphire/utilities';
 import { ChannelType } from 'discord-api-types/v10';
 import {
 	ActionRowBuilder,
@@ -6,7 +8,7 @@ import {
 	ButtonStyle,
 	Collection,
 	type MessageComponentInteraction,
-	AutocompleteInteraction,
+	type AutocompleteInteraction,
 	type ApplicationCommandOptionChoiceData,
 	EmbedBuilder,
 	InteractionContextType,
@@ -14,9 +16,7 @@ import {
 	time,
 	TimestampStyles,
 } from 'discord.js';
-import { PaginatedMessage } from '@sapphire/discord.js-utilities';
-import { chunk } from '@sapphire/utilities';
-
+import { makeClanJoinRequestId } from '../../../interaction-handlers/clan-join-request.js';
 import {
 	ClanCreationStatus,
 	ClanDeletionStatus,
@@ -25,19 +25,18 @@ import {
 	MAX_MEMBERS_IN_CLAN,
 } from '../../../lib/abilities/ClanManager.js';
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
-import { ensureFullMember } from '../../../lib/utils.js';
 import { createErrorEmbed, createInfoEmbed } from '../../../lib/utils/createEmbed.js';
-import { waitForButtonConfirm } from '../../../lib/utils/waitForInteraction.js';
 import { trimPretty } from '../../../lib/utils/trim.js';
-import { makeClanJoinRequestId } from '../../../interaction-handlers/clan-join-request.js';
+import { waitForButtonConfirm } from '../../../lib/utils/waitForInteraction.js';
+import { ensureFullMember } from '../../../lib/utils.js';
 
 const clanInviteCooldown = 60 * 60_000; // 60 seconds * 60 minutes * 24 hours = 1 hour
 const clanInviteDelayString = 'an hour';
 const cooldowns = new Collection<string, number>();
 
 const requestCooldowns = new Map<string, number>(); // 'requesterId' OR 'requesterId-clanOwnerId', timestamp when cooldown expires
-const GLOBAL_JOIN_COOLDOWN = 15 * 60 * 1000; // 15 minutes
-const SAME_CLAN_JOIN_COOLDOWN = 60 * 60 * 1000; // 1 hour
+const GLOBAL_JOIN_COOLDOWN = 15 * 60 * 1_000; // 15 minutes
+const SAME_CLAN_JOIN_COOLDOWN = 60 * 60 * 1_000; // 1 hour
 
 export class ClanCommand extends Subcommand {
 	public subcommandMappings: SubcommandMappingArray = [
@@ -404,7 +403,7 @@ export class ClanCommand extends Subcommand {
 
 		// Check same-clan cooldown first (it's longer)
 		if (now < sameClanCooldownExpires) {
-			const cooldownTimestamp = Math.floor(sameClanCooldownExpires / 1000);
+			const cooldownTimestamp = Math.floor(sameClanCooldownExpires / 1_000);
 			await interaction.editReply({
 				embeds: [
 					createErrorEmbed(
@@ -420,7 +419,7 @@ export class ClanCommand extends Subcommand {
 
 		// Check global cooldown
 		if (now < globalCooldownExpires) {
-			const cooldownTimestamp = Math.floor(globalCooldownExpires / 1000);
+			const cooldownTimestamp = Math.floor(globalCooldownExpires / 1_000);
 			await interaction.editReply({
 				embeds: [
 					createErrorEmbed(
@@ -954,7 +953,7 @@ export class ClanCommand extends Subcommand {
 			const premiumMembers = await this.container.prisma.premiumMember.findMany({
 				where: {
 					guildId: interaction.guildId,
-					customRoleId: { in: visibleClans.map((c) => c.customRoleId) },
+					customRoleId: { in: visibleClans.map((clan) => clan.customRoleId) },
 				},
 				select: { customRoleId: true, userId: true },
 			});
@@ -1032,7 +1031,7 @@ export class ClanCommand extends Subcommand {
 							option
 								.setName('message')
 								.setDescription('An optional message to send with your request.')
-								.setMaxLength(1000)
+								.setMaxLength(1_000)
 								.setRequired(false),
 						),
 				)

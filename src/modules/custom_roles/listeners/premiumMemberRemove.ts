@@ -25,7 +25,7 @@ export class GuildMemberRemove extends Listener<typeof Events.GuildMemberRemove>
 			where: {
 				clanGuildId: member.guild.id,
 				userId: member.id,
-				clanCustomRoleId: { notIn: customRoleId ? [customRoleId] : [] }
+				clanCustomRoleId: { notIn: customRoleId ? [customRoleId] : [] },
 			},
 		});
 	}
