@@ -5,7 +5,7 @@ import { PermissionFlagsBits, escapeMarkdown, type Role, type Message, type Text
 import type { RoleAbility } from '../../../lib/abilities/RoleAbilities.js';
 import { RoleAbilitiesCalculator, RoleAbilityMap } from '../../../lib/abilities/RoleAbilities.js';
 import { createErrorEmbed, createInfoEmbed } from '../../../lib/utils/createEmbed.js';
-import type { CheckPremiumMemberAbilities } from '../../../tasks/checkPremiumMemberAbilities.js';
+import type { CheckPremiumMemberAbilities, FixMode } from '../../../tasks/checkPremiumMemberAbilities.js';
 
 export class ConfigPremiumCommand extends Subcommand {
 	public subcommandMappings: SubcommandMappingArray = [
@@ -870,10 +870,16 @@ export class ConfigPremiumCommand extends Subcommand {
 					subcommand
 						.setName('check-abilities')
 						.setDescription('Check premium members for ability mismatches')
-						.addBooleanOption((option) =>
+						.addStringOption((option) =>
 							option
-								.setName('dry-run')
-								.setDescription('If true, only shows stats without making changes (default: true)')
+								.setName('mode')
+								.setDescription('What to fix (default: dry-run)')
+								.addChoices(
+									{ name: 'Dry run (no fixes)', value: 'dry-run' },
+									{ name: 'Fix missing members only', value: 'fix-missing' },
+									{ name: 'Fix mismatches only', value: 'fix-mismatches' },
+									{ name: 'Fix all issues', value: 'fix-all' },
+								)
 								.setRequired(false),
 						),
 				),
@@ -978,8 +984,8 @@ export class ConfigPremiumCommand extends Subcommand {
 	public async checkAbilitiesSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		await interaction.deferReply({ ephemeral: true });
 
-		// Get the dry-run option (defaults to true if not provided)
-		const dryRun = interaction.options.getBoolean('dry-run') ?? true;
+		// Get the mode option (defaults to 'dry-run' if not provided)
+		const fixMode = (interaction.options.getString('mode') as FixMode | null) ?? 'dry-run';
 
 		// Get the task and run the check
 		const task = this.container.stores
@@ -987,30 +993,42 @@ export class ConfigPremiumCommand extends Subcommand {
 			.get('checkPremiumMemberAbilities') as CheckPremiumMemberAbilities;
 		const result = await task.checkAbilities({
 			guildId: interaction.guildId,
-			fix: !dryRun,
+			fixMode,
 		});
 
 		// Format the results
-		const mode = dryRun ? '**Dry Run**' : '**Fix Mode**';
+		const modeLabels: Record<FixMode, string> = {
+			'dry-run': 'Dry Run',
+			'fix-missing': 'Fix Missing Members',
+			'fix-mismatches': 'Fix Mismatches',
+			'fix-all': 'Fix All Issues',
+		};
+
 		const description = [
 			`✅ Checked: ${result.totalChecked} members`,
 			`⚠️ Mismatches: ${result.totalMismatches}`,
 			`❌ Missing: ${result.totalMissing}`,
 		];
 
-		if (dryRun) {
+		if (fixMode === 'dry-run') {
 			description.push('');
 			description.push(
-				'*No changes were made. Use `/config-premium check-abilities dry-run:false` to fix mismatches.*',
+				'*No changes were made. Use `/config-premium check-abilities mode:<fix-mode>` to fix issues.*',
 			);
 		} else {
 			description.push(`🔧 Fixed: ${result.fixed}`);
 			description.push('');
-			description.push(`*Removed ${result.fixed} premium member entries from the database.*`);
+			const fixedWhat =
+				fixMode === 'fix-all' ? 'all issues'
+				: fixMode === 'fix-missing' ? 'missing members'
+				: 'mismatches';
+			description.push(`*Removed ${result.fixed} premium member entries from the database (${fixedWhat}).*`);
 		}
 
 		await interaction.editReply({
-			embeds: [createInfoEmbed(`**Premium Ability Check (${mode})**\n\n${description.join('\n')}`)],
+			embeds: [
+				createInfoEmbed(`**Premium Ability Check (${modeLabels[fixMode]})**\n\n${description.join('\n')}`),
+			],
 		});
 	}
 }

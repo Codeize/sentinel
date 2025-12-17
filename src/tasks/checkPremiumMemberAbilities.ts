@@ -1,11 +1,13 @@
 import { MemberAbilities } from '../lib/abilities/MemberAbilities.js';
 import { Task, type TaskRunData } from '../lib/schedule/tasks/Task.js';
 
+export type FixMode = 'dry-run' | 'fix-all' | 'fix-mismatches' | 'fix-missing';
+
 export interface CheckPremiumMemberAbilitiesOptions {
 	/**
-	 * If true, removes mismatched premium members from database
+	 * What to fix: 'dry-run' (default), 'fix-missing', 'fix-mismatches', or 'fix-all'
 	 */
-	fix?: boolean;
+	fixMode?: FixMode;
 	/**
 	 * Optional guild ID to check only a specific guild
 	 */
@@ -33,8 +35,10 @@ export class CheckPremiumMemberAbilities extends Task {
 	public async checkAbilities(
 		options: CheckPremiumMemberAbilitiesOptions = {},
 	): Promise<CheckPremiumMemberAbilitiesResult> {
-		const mode = options.fix ? 'FIX' : 'DRY RUN';
-		this.container.logger.info(`[PREMIUM ABILITY CHECK] Starting premium member ability check (${mode})...`);
+		const fixMode = options.fixMode ?? 'dry-run';
+		this.container.logger.info(
+			`[PREMIUM ABILITY CHECK] Starting premium member ability check (mode: ${fixMode})...`,
+		);
 
 		const whereClause = options.guildId ? { guildId: options.guildId } : {};
 		const premiumMembers = await this.container.prisma.premiumMember.findMany({
@@ -67,6 +71,8 @@ export class CheckPremiumMemberAbilities extends Task {
 					continue;
 				}
 
+				totalChecked++;
+
 				let member;
 
 				try {
@@ -76,6 +82,29 @@ export class CheckPremiumMemberAbilities extends Task {
 					this.container.logger.warn(
 						`[PREMIUM ABILITY CHECK] User ${premiumMember.userId} not found in guild ${guild.name} (${guild.id}) - may have left the server`,
 					);
+
+					// Fix missing members if mode is 'fix-missing' or 'fix-all'
+					if (fixMode === 'fix-missing' || fixMode === 'fix-all') {
+						try {
+							await this.container.prisma.premiumMember.delete({
+								where: {
+									guildId_userId: {
+										guildId: premiumMember.guildId,
+										userId: premiumMember.userId,
+									},
+								},
+							});
+							fixed++;
+							this.container.logger.info(
+								`[PREMIUM ABILITY CHECK] [FIXED MISSING] Removed premium member entry for missing user ${premiumMember.userId} in guild ${guild.name} (${guild.id})`,
+							);
+						} catch (error) {
+							this.container.logger.error(
+								`[PREMIUM ABILITY CHECK] Failed to remove missing premium member ${premiumMember.userId} in guild ${premiumMember.guildId}:`,
+								error,
+							);
+						}
+					}
 
 					continue;
 				}
@@ -88,8 +117,6 @@ export class CheckPremiumMemberAbilities extends Task {
 					memberAbilities.hasAbility('canCreateCustomRole') ||
 					memberAbilities.hasAbility('canGiftLegend') ||
 					memberAbilities.hasAbility('areAbilitiesMultiGuild');
-
-				totalChecked++;
 
 				if (!hasAnyAbility) {
 					totalMismatches++;
@@ -104,8 +131,8 @@ export class CheckPremiumMemberAbilities extends Task {
 						},
 					);
 
-					// If fix mode is enabled, remove the premium member from database
-					if (options.fix) {
+					// Fix mismatches if mode is 'fix-mismatches' or 'fix-all'
+					if (fixMode === 'fix-mismatches' || fixMode === 'fix-all') {
 						try {
 							await this.container.prisma.premiumMember.delete({
 								where: {
@@ -136,7 +163,7 @@ export class CheckPremiumMemberAbilities extends Task {
 		}
 
 		this.container.logger.info(
-			`[PREMIUM ABILITY CHECK] Completed. Checked ${totalChecked} members, found ${totalMismatches} mismatches, ${totalMissing} missing${options.fix ? `, fixed ${fixed}` : ''}.`,
+			`[PREMIUM ABILITY CHECK] Completed. Checked ${totalChecked} members, found ${totalMismatches} mismatches, ${totalMissing} missing${fixMode === 'dry-run' ? '' : `, fixed ${fixed}`}.`,
 		);
 
 		return { totalChecked, totalMismatches, totalMissing, fixed };
