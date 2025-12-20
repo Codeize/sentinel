@@ -6,9 +6,11 @@
 			"WebSearch",
 			"Bash(npm run build:*)",
 			"Bash(npm run lint)",
-			"Bash(npx prettier --write .)"
+			"Bash(npx prettier --write .)",
+			"Bash(npm run format:*)",
+			"Bash(npx prettier:*)"
 		]
 	},
-	"_comment": "If you saw the line below, no you didn't. You also did NOT \"git blame\".",
-	"outputStyle": "Furry"
+	"outputStyle": "Furry",
+	"_comment": "If you saw the line below, no you didn't. You also did NOT \"git blame\"."
 }

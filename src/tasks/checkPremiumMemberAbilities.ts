@@ -17,9 +17,11 @@ export interface CheckPremiumMemberAbilitiesOptions {
 
 export interface CheckPremiumMemberAbilitiesResult {
 	fixed: number;
+	orphanedClansFixed: number;
 	totalChecked: number;
 	totalMismatches: number;
 	totalMissing: number;
+	totalOrphanedClansWithoutTask: number;
 }
 
 /**
@@ -138,100 +140,188 @@ export class CheckPremiumMemberAbilities extends Task {
 			},
 		});
 
-		if (premiumMembers.length === 0) {
-			this.container.logger.info('[PREMIUM ABILITY CHECK] No premium members found in database.');
-			return { totalChecked: 0, totalMismatches: 0, totalMissing: 0, fixed: 0 };
-		}
-
 		let totalChecked = 0;
 		let totalMismatches = 0;
 		let totalMissing = 0;
 		let fixed = 0;
+		let totalOrphanedClansWithoutTask = 0;
+		let orphanedClansFixed = 0;
 
-		for (const premiumMember of premiumMembers) {
-			try {
-				const guild = this.container.client.guilds.resolve(premiumMember.guildId);
-
-				if (!guild) {
-					this.container.logger.warn(
-						`[PREMIUM ABILITY CHECK] Guild ${premiumMember.guildId} not found for user ${premiumMember.userId}`,
-					);
-					continue;
-				}
-
-				totalChecked++;
-
-				let member;
-
+		if (premiumMembers.length > 0) {
+			for (const premiumMember of premiumMembers) {
 				try {
-					member = await guild.members.fetch(premiumMember.userId);
-				} catch {
-					totalMissing++;
-					this.container.logger.warn(
-						`[PREMIUM ABILITY CHECK] User ${premiumMember.userId} not found in guild ${guild.name} (${guild.id}) - may have left the server`,
-					);
+					const guild = this.container.client.guilds.resolve(premiumMember.guildId);
 
-					// Fix missing members if mode is 'fix-missing' or 'fix-all'
-					if (fixMode === 'fix-missing' || fixMode === 'fix-all') {
-						await this.cleanupPremiumMember(
-							premiumMember.guildId,
-							premiumMember.userId,
-							premiumMember.customRoleId,
-							guild.name,
-							'missing',
+					if (!guild) {
+						this.container.logger.warn(
+							`[PREMIUM ABILITY CHECK] Guild ${premiumMember.guildId} not found for user ${premiumMember.userId}`,
 						);
-						fixed++;
+						continue;
 					}
 
-					continue;
+					totalChecked++;
+
+					let member;
+
+					try {
+						member = await guild.members.fetch(premiumMember.userId);
+					} catch {
+						totalMissing++;
+						this.container.logger.warn(
+							`[PREMIUM ABILITY CHECK] User ${premiumMember.userId} not found in guild ${guild.name} (${guild.id}) - may have left the server`,
+						);
+
+						// Fix missing members if mode is 'fix-missing' or 'fix-all'
+						if (fixMode === 'fix-missing' || fixMode === 'fix-all') {
+							await this.cleanupPremiumMember(
+								premiumMember.guildId,
+								premiumMember.userId,
+								premiumMember.customRoleId,
+								guild.name,
+								'missing',
+							);
+							fixed++;
+						}
+
+						continue;
+					}
+
+					const memberAbilities = new MemberAbilities(member);
+					await memberAbilities.computeAbilities();
+
+					const hasAnyAbility =
+						memberAbilities.hasAbility('canCreateClan') ||
+						memberAbilities.hasAbility('canCreateCustomRole') ||
+						memberAbilities.hasAbility('canGiftLegend') ||
+						memberAbilities.hasAbility('areAbilitiesMultiGuild');
+
+					if (!hasAnyAbility) {
+						totalMismatches++;
+						this.container.logger.warn(
+							`[PREMIUM ABILITY CHECK] [PREMIUM MEMBER LOST ABILITIES] User ${member.user.tag} (${premiumMember.userId}) in guild ${guild.name} (${guild.id}) is in the premium members database but has NO premium abilities in Discord. This indicates they lost their premium role.`,
+							{
+								userId: premiumMember.userId,
+								guildId: premiumMember.guildId,
+								guildName: guild.name,
+								userTag: member.user.tag,
+								customRoleId: premiumMember.customRoleId,
+							},
+						);
+
+						// Fix mismatches if mode is 'fix-mismatches' or 'fix-all'
+						if (fixMode === 'fix-mismatches' || fixMode === 'fix-all') {
+							await this.cleanupPremiumMember(
+								premiumMember.guildId,
+								premiumMember.userId,
+								premiumMember.customRoleId,
+								guild.name,
+								'mismatch',
+							);
+							fixed++;
+						}
+					}
+				} catch (error) {
+					this.container.logger.error(
+						`[PREMIUM ABILITY CHECK] Error checking premium member ${premiumMember.userId} in guild ${premiumMember.guildId}:`,
+						error,
+					);
+				}
+			}
+		}
+
+		// Check all clans for orphan issues
+		this.container.logger.info('[PREMIUM ABILITY CHECK] Checking for orphaned clans...');
+
+		const clans = await this.container.prisma.clan.findMany({
+			where: options.guildId ? { guildId: options.guildId } : {},
+			select: {
+				customRoleId: true,
+				deletionTaskId: true,
+				guildId: true,
+			},
+		});
+
+		for (const clan of clans) {
+			try {
+				let isOrphaned = false;
+				let orphanReason = '';
+
+				if (clan.deletionTaskId) {
+					// Clan has a deletionTaskId, verify the scheduled task actually exists
+					const scheduledTask = await this.container.prisma.schedule.findUnique({
+						where: { id: clan.deletionTaskId },
+					});
+
+					if (!scheduledTask) {
+						isOrphaned = true;
+						orphanReason = `has deletionTaskId ${clan.deletionTaskId} but no scheduled task exists`;
+					}
+				} else {
+					// Clan has no deletionTaskId, check if it has a premium member owner
+					const premiumMember = await this.container.prisma.premiumMember.findFirst({
+						where: {
+							guildId: clan.guildId,
+							customRoleId: clan.customRoleId,
+						},
+					});
+
+					if (!premiumMember) {
+						isOrphaned = true;
+						orphanReason = 'has no premium member entry and no deletionTaskId';
+					}
 				}
 
-				const memberAbilities = new MemberAbilities(member);
-				await memberAbilities.computeAbilities();
+				if (isOrphaned) {
+					totalOrphanedClansWithoutTask++;
+					const guild = this.container.client.guilds.resolve(clan.guildId);
 
-				const hasAnyAbility =
-					memberAbilities.hasAbility('canCreateClan') ||
-					memberAbilities.hasAbility('canCreateCustomRole') ||
-					memberAbilities.hasAbility('canGiftLegend') ||
-					memberAbilities.hasAbility('areAbilitiesMultiGuild');
-
-				if (!hasAnyAbility) {
-					totalMismatches++;
 					this.container.logger.warn(
-						`[PREMIUM ABILITY CHECK] [PREMIUM MEMBER LOST ABILITIES] User ${member.user.tag} (${premiumMember.userId}) in guild ${guild.name} (${guild.id}) is in the premium members database but has NO premium abilities in Discord. This indicates they lost their premium role.`,
-						{
-							userId: premiumMember.userId,
-							guildId: premiumMember.guildId,
-							guildName: guild.name,
-							userTag: member.user.tag,
-							customRoleId: premiumMember.customRoleId,
-						},
+						`[PREMIUM ABILITY CHECK] [ORPHANED CLAN] Clan with custom role ${clan.customRoleId} in guild ${clan.guildId} ${orphanReason}`,
 					);
 
-					// Fix mismatches if mode is 'fix-mismatches' or 'fix-all'
-					if (fixMode === 'fix-mismatches' || fixMode === 'fix-all') {
-						await this.cleanupPremiumMember(
-							premiumMember.guildId,
-							premiumMember.userId,
-							premiumMember.customRoleId,
-							guild.name,
-							'mismatch',
-						);
-						fixed++;
+					// Delete orphaned clan immediately if fix mode allows
+					if ((fixMode === 'fix-all' || fixMode === 'fix-missing') && guild) {
+						try {
+							const clanManager = new ClanManager(clan.customRoleId, clan.guildId);
+							await clanManager.deleteClan();
+
+							// Also delete the custom role from Discord
+							const role = await guild.roles.fetch(clan.customRoleId).catch(() => null);
+							if (role) {
+								await role.delete('Orphaned clan cleanup');
+							}
+
+							orphanedClansFixed++;
+							this.container.logger.info(
+								`[PREMIUM ABILITY CHECK] [FIXED] Deleted orphaned clan with custom role ${clan.customRoleId} in guild ${guild.name} (${clan.guildId})`,
+							);
+						} catch (error) {
+							this.container.logger.error(
+								`[PREMIUM ABILITY CHECK] Failed to delete orphaned clan ${clan.customRoleId} in guild ${clan.guildId}:`,
+								error,
+							);
+						}
 					}
 				}
 			} catch (error) {
 				this.container.logger.error(
-					`[PREMIUM ABILITY CHECK] Error checking premium member ${premiumMember.userId} in guild ${premiumMember.guildId}:`,
+					`[PREMIUM ABILITY CHECK] Error checking clan ${clan.customRoleId} in guild ${clan.guildId}:`,
 					error,
 				);
 			}
 		}
 
 		this.container.logger.info(
-			`[PREMIUM ABILITY CHECK] Completed. Checked ${totalChecked} members, found ${totalMismatches} mismatches, ${totalMissing} missing${fixMode === 'dry-run' ? '' : `, fixed ${fixed}`}.`,
+			`[PREMIUM ABILITY CHECK] Completed. Checked ${totalChecked} members, found ${totalMismatches} mismatches, ${totalMissing} missing${totalOrphanedClansWithoutTask > 0 ? `, ${totalOrphanedClansWithoutTask} orphaned clans` : ''}${fixMode === 'dry-run' ? '' : `, fixed ${fixed} members and ${orphanedClansFixed} orphaned clans`}.`,
 		);
 
-		return { totalChecked, totalMismatches, totalMissing, fixed };
+		return {
+			totalChecked,
+			totalMismatches,
+			totalMissing,
+			fixed,
+			totalOrphanedClansWithoutTask,
+			orphanedClansFixed,
+		};
 	}
 }

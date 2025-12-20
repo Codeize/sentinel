@@ -1010,19 +1010,29 @@ export class ConfigPremiumCommand extends Subcommand {
 			`❌ Missing: ${result.totalMissing}`,
 		];
 
+		if (result.totalOrphanedClansWithoutTask > 0) {
+			description.push(`🏚️ Orphaned clans: ${result.totalOrphanedClansWithoutTask}`);
+		}
+
 		if (fixMode === 'dry-run') {
 			description.push('');
 			description.push(
 				'*No changes were made. Use `/config-premium check-abilities mode:<fix-mode>` to fix issues.*',
 			);
 		} else {
-			description.push(`🔧 Fixed: ${result.fixed}`);
+			description.push(`🔧 Fixed members: ${result.fixed}`);
+			if (result.orphanedClansFixed > 0) {
+				description.push(`🔧 Fixed orphaned clans: ${result.orphanedClansFixed}`);
+			}
+
 			description.push('');
 			const fixedWhat =
 				fixMode === 'fix-all' ? 'all issues'
 				: fixMode === 'fix-missing' ? 'missing members'
 				: 'mismatches';
-			description.push(`*Removed ${result.fixed} premium member entries from the database (${fixedWhat}).*`);
+			description.push(
+				`*Removed ${result.fixed} premium member entries and ${result.orphanedClansFixed} orphaned clans from the database (${fixedWhat}).*`,
+			);
 		}
 
 		await interaction.editReply({
