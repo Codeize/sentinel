@@ -2,6 +2,7 @@ import process from 'node:process';
 import { time } from '@discordjs/builders';
 import { Command } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
+import { MessageFlags } from 'discord-api-types/v10';
 import type { ChatInputCommandInteraction, GuildMember, Message, TextChannel, VoiceChannel } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { UserError } from '../lib/extensions/UserError.js';
@@ -340,7 +341,7 @@ export class VoteKick extends Command {
 
 		if ((cooldownEntry?.expiresAt ?? 0) > now) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					new EmbedBuilder()
 						.setColor('Red')

@@ -1,7 +1,14 @@
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { remove } from 'confusables';
 import { ChannelType } from 'discord-api-types/v10';
-import { PermissionFlagsBits, escapeMarkdown, type Role, type Message, type TextChannel } from 'discord.js';
+import {
+	PermissionFlagsBits,
+	escapeMarkdown,
+	type Role,
+	type Message,
+	type TextChannel,
+	MessageFlags,
+} from 'discord.js';
 import type { RoleAbility } from '../../../lib/abilities/RoleAbilities.js';
 import { RoleAbilitiesCalculator, RoleAbilityMap } from '../../../lib/abilities/RoleAbilities.js';
 import { createErrorEmbed, createInfoEmbed } from '../../../lib/utils/createEmbed.js';
@@ -135,7 +142,7 @@ export class ConfigPremiumCommand extends Subcommand {
 			embeds: [
 				createInfoEmbed(representations.map(({ name, value }) => `**${name}:** ${value ?? 'None'}`).join('\n')),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -145,7 +152,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (role?.managed) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('You cannot set a managed role as the legend role!')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -155,7 +162,7 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		if (role && me.roles.highest.position <= role.position) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`I do not have permission to assign the role ${role} in this server as its above my highest role.`,
@@ -190,7 +197,7 @@ export class ConfigPremiumCommand extends Subcommand {
 						`Set the legend role in this server from ${previousRoleRepresentation} to ${newRoleRepresentation}`,
 					),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -204,7 +211,7 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		await interaction.reply({
 			embeds: [createInfoEmbed(`Set the legend role in this server to ${newRoleRepresentation}`)],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -214,7 +221,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!category || category.type !== ChannelType.GuildCategory) {
 			await interaction.reply({
 				embeds: [createErrorEmbed('No category or invalid category provided.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -243,7 +250,7 @@ export class ConfigPremiumCommand extends Subcommand {
 				embeds: [
 					createInfoEmbed(`Set the clan category from ${previousRepresentation} to ${newRepresentation}`),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -257,7 +264,7 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		await interaction.reply({
 			embeds: [createInfoEmbed(`Set the clan category to ${newRepresentation}`)],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -267,7 +274,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!channel || channel.type !== ChannelType.GuildText) {
 			await interaction.reply({
 				embeds: [createErrorEmbed('No channel or invalid channel provided.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -298,7 +305,7 @@ export class ConfigPremiumCommand extends Subcommand {
 						`Set the clan invites channel from ${previousRepresentation} to ${newRepresentation}`,
 					),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -312,7 +319,7 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		await interaction.reply({
 			embeds: [createInfoEmbed(`Set the clan invites channel to ${newRepresentation}`)],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -324,7 +331,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (roleAbilitiesCalculator.getAllPremiumRoleIds().length < 1) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('No role abilities were configured yet.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -354,7 +361,7 @@ export class ConfigPremiumCommand extends Subcommand {
 						.join('\n\n'),
 				).setTitle('Role Abilities'),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -368,7 +375,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!Object.keys(RoleAbilityMap).includes(ability as RoleAbility)) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('This is not a valid ability.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -377,7 +384,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (roleAbilities[ability as RoleAbility]) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('This role already has this ability.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -395,7 +402,7 @@ export class ConfigPremiumCommand extends Subcommand {
 					`Added the ability "${RoleAbilityMap[ability as RoleAbility]}" to role ${role.toString()}.`,
 				),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -409,7 +416,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!Object.keys(RoleAbilityMap).includes(ability as RoleAbility)) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('That is not a valid ability.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -418,7 +425,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!roleAbilities[ability as RoleAbility]) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('This role already does not have this ability.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -435,7 +442,7 @@ export class ConfigPremiumCommand extends Subcommand {
 					`Removed the ability "${RoleAbilityMap[ability as RoleAbility]}" from role ${role.toString()}.`,
 				),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -445,7 +452,7 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		if (role && me.roles.highest.position <= role.position) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`I do not have permission create roles above ${role} in this server as its above my highest role.`,
@@ -481,7 +488,7 @@ export class ConfigPremiumCommand extends Subcommand {
 						`Set the starting position role in this server from ${previousRoleRepresentation} to ${newRoleRepresentation}`,
 					),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -495,7 +502,7 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		await interaction.reply({
 			embeds: [createInfoEmbed(`Set the starting position role in this server to ${newRoleRepresentation}`)],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -507,7 +514,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!guildConfigs?.staffRoles.length) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('There are no staff roles configured in this server!')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -521,7 +528,7 @@ export class ConfigPremiumCommand extends Subcommand {
 					`**Staff Roles:**\n${roles.map((role) => role?.toString() ?? 'Unknown Role').join('\n')}`,
 				),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -535,7 +542,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (guildConfigs?.staffRoles.includes(role.id)) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('This role is already a staff role in this server!')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -549,7 +556,7 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		await interaction.reply({
 			embeds: [createInfoEmbed(`Added the role ${role.toString()} to the list of staff roles in this server!`)],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -563,7 +570,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!guildConfigs?.staffRoles.includes(role.id)) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('This role is not a staff role in this server!')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -578,7 +585,7 @@ export class ConfigPremiumCommand extends Subcommand {
 			embeds: [
 				createInfoEmbed(`Removed the role ${role.toString()} from the list of staff roles in this server!`),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -592,7 +599,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (existingPattern) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('This pattern is already forbidden in this server!')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -615,7 +622,7 @@ export class ConfigPremiumCommand extends Subcommand {
 			embeds: [
 				createInfoEmbed(`Added the pattern \`${name}\` to the list of forbidden patterns in this server!`),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -629,7 +636,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!existingPattern) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('This pattern is not forbidden in this server!')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -643,7 +650,7 @@ export class ConfigPremiumCommand extends Subcommand {
 			embeds: [
 				createInfoEmbed(`Removed the pattern \`${name}\` from the list of forbidden patterns in this server!`),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -655,7 +662,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!patterns.length) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('There are no forbidden patterns in this server!')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -667,7 +674,7 @@ export class ConfigPremiumCommand extends Subcommand {
 					`**Forbidden Patterns:**\n- ${patterns.map((pattern) => `\`${escapeMarkdown(pattern.rawPattern)}\``).join('\n- ')}`,
 				),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 
@@ -893,7 +900,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		if (!channel || channel.type !== ChannelType.GuildText) {
 			await interaction.reply({
 				embeds: [createErrorEmbed('Please provide a valid text channel.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 			return;
 		}
@@ -911,7 +918,7 @@ export class ConfigPremiumCommand extends Subcommand {
 						`I need permissions to Send Messages and Read Message History in <#${channel.id}>.`,
 					),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 			return;
 		}
@@ -936,7 +943,7 @@ export class ConfigPremiumCommand extends Subcommand {
 						'Failed to send the initial directory message. Please check my permissions in that channel.',
 					),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 			return;
 		}
@@ -963,7 +970,7 @@ export class ConfigPremiumCommand extends Subcommand {
 					`✅ Set the clan directory channel to <#${channel.id}>. The directory message ID is \`${directoryMessage.id}\`. It will be updated automatically.`,
 				),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 
 		// 6. Trigger Immediate Update (Optional but Recommended)
@@ -982,7 +989,7 @@ export class ConfigPremiumCommand extends Subcommand {
 	}
 
 	public async checkAbilitiesSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		// Get the mode option (defaults to 'dry-run' if not provided)
 		const fixMode = (interaction.options.getString('mode') as FixMode | null) ?? 'dry-run';

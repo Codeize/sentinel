@@ -3,7 +3,7 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { InteractionHandler, InteractionHandlerTypes, Result } from '@sapphire/framework';
 import type { ButtonInteraction, Message } from 'discord.js';
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 import { generatePollEmbedDescription } from '../lib/utils/polls/generatePollEmbed.js';
 
@@ -34,7 +34,7 @@ export class PollButtonHandler extends InteractionHandler {
 		if (!poll) {
 			return interaction.reply({
 				embeds: [createInfoEmbed(`This shouldn't happen! Couldn't find a poll for that button 😳`)],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		}
 
@@ -46,7 +46,7 @@ export class PollButtonHandler extends InteractionHandler {
 			case 'my_option': {
 				if (!existingAnswer) {
 					return interaction.reply({
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 						embeds: [createInfoEmbed(`You haven't selected an answer yet!`)],
 					});
 				}
@@ -59,7 +59,7 @@ export class PollButtonHandler extends InteractionHandler {
 							}`,
 						),
 					],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 			}
 
@@ -72,7 +72,7 @@ export class PollButtonHandler extends InteractionHandler {
 					await this.updatePollMessage(interaction, poll.id);
 
 					await interaction.followUp({
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 						embeds: [
 							createInfoEmbed(
 								`Your vote for this poll has been removed.\n\nAs a reminder, you voted for option **${
@@ -86,7 +86,7 @@ export class PollButtonHandler extends InteractionHandler {
 				} catch {
 					return interaction.reply({
 						embeds: [createInfoEmbed(`You haven't selected an answer yet! There's no answer to clear 👀`)],
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 					});
 				}
 			}
@@ -107,7 +107,7 @@ export class PollButtonHandler extends InteractionHandler {
 								`Something wrong definitely happened and I cannot process the option you want to select...`,
 							),
 						],
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 					});
 				}
 
@@ -121,7 +121,7 @@ export class PollButtonHandler extends InteractionHandler {
 									`You already voted for option number **${numericIndex + 1}**: ${poll.options[numericIndex]}`,
 								),
 							],
-							ephemeral: true,
+							flags: MessageFlags.Ephemeral,
 						});
 					}
 
@@ -141,7 +141,7 @@ export class PollButtonHandler extends InteractionHandler {
 								}**: ${poll.options[numericIndex]}`,
 							),
 						],
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 					});
 
 					return;
@@ -164,7 +164,7 @@ export class PollButtonHandler extends InteractionHandler {
 							`You voted for option number **${numericIndex + 1}**: ${poll.options[numericIndex]}`,
 						),
 					],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 			}
 		}

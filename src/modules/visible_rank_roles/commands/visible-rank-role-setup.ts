@@ -2,7 +2,7 @@ import { RoleSyncType } from '@prisma/client';
 import { PaginatedMessage } from '@sapphire/discord.js-utilities';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { chunk } from '@sapphire/utilities';
-import { PermissionFlagsBits, type ApplicationCommandOptionChoiceData } from 'discord.js';
+import { MessageFlags, PermissionFlagsBits, type ApplicationCommandOptionChoiceData } from 'discord.js';
 import { createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 import { trimPretty } from '../../../lib/utils/trim.js';
 
@@ -31,7 +31,7 @@ export class VisibleRankRoleSetup extends Subcommand {
 
 		if (toggleableRole.managed) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`The role ${toggleableRole.toString()} (${
@@ -48,7 +48,7 @@ export class VisibleRankRoleSetup extends Subcommand {
 
 		if (me.roles.highest.position <= toggleableRole.position) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`I do not have permission to assign the role ${toggleableRole} in this server as its above my highest role.`,
@@ -70,7 +70,7 @@ export class VisibleRankRoleSetup extends Subcommand {
 
 		if (existingRoleSync) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`There is already a role sync entry for the role ${originRole} (${originRole.id}) and ${toggleableRole} (${toggleableRole.id})`,
@@ -136,7 +136,7 @@ export class VisibleRankRoleSetup extends Subcommand {
 
 		if (!resolvedFilter) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`Could not resolve the toggleable role sync entry you provided.`)],
 			});
 		}
@@ -147,7 +147,7 @@ export class VisibleRankRoleSetup extends Subcommand {
 
 		if (!entry) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`Could not find a toggleable role sync entry with the provided id.`)],
 			});
 		}
@@ -179,7 +179,7 @@ export class VisibleRankRoleSetup extends Subcommand {
 
 		if (roleSyncs.length === 0) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`No toggleable role syncs have been setup in this server.`)],
 			});
 
@@ -213,7 +213,7 @@ export class VisibleRankRoleSetup extends Subcommand {
 
 		if (usableRoleSyncs.length === 0) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`No toggleable role syncs have been setup in this server.`)],
 			});
 			return;

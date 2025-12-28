@@ -1,6 +1,11 @@
 import { Buffer } from 'node:buffer';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
-import type { MessageComponentInteraction, RoleColorsResolvable, RoleEditOptions } from 'discord.js';
+import {
+	MessageFlags,
+	type MessageComponentInteraction,
+	type RoleColorsResolvable,
+	type RoleEditOptions,
+} from 'discord.js';
 import looksSame, { type Color } from 'looks-same';
 import magicBytes from 'magic-bytes.js';
 import { ClanDeletionStatus, ClanManager } from '../../../lib/abilities/ClanManager.js';
@@ -68,7 +73,7 @@ export class CustomRoleCommand extends Subcommand {
 		if (premiumRoleIds.length < 1) {
 			await interaction.reply({
 				embeds: [createInfoEmbed("This server doesn't support premium custom roles.")],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 			return;
 		}
@@ -76,14 +81,14 @@ export class CustomRoleCommand extends Subcommand {
 		if (!memberAbilities.hasAbility('canCreateCustomRole')) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('You do not have the ability to create a custom role.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
 		}
 
 		await interaction.deferReply({
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 
 		const premiumMember = await this.container.prisma.premiumMember.findFirst({
@@ -320,7 +325,7 @@ export class CustomRoleCommand extends Subcommand {
 		if (roleAbilitiesCalculator.getPremiumRoleIds('canCreateCustomRole').length < 1) {
 			await interaction.reply({
 				embeds: [createInfoEmbed("This server doesn't support premium custom roles.")],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -329,7 +334,7 @@ export class CustomRoleCommand extends Subcommand {
 		if (!memberAbilities.hasAbility('canCreateCustomRole')) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('You do not have the ability to create a custom role.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -346,7 +351,7 @@ export class CustomRoleCommand extends Subcommand {
 						"You'll need to configure your premium custom role by running the `/custom-role edit` command first!",
 					),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -367,7 +372,7 @@ export class CustomRoleCommand extends Subcommand {
 						'Your premium custom role no longer exists. Run `/custom-role edit` to recreate it.',
 					),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -378,13 +383,13 @@ export class CustomRoleCommand extends Subcommand {
 				await interaction.member.roles.remove(guildRole, 'Toggled premium custom role');
 				await interaction.reply({
 					embeds: [createInfoEmbed('Your premium custom role has been removed from your profile.')],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 			} else {
 				await interaction.member.roles.add(guildRole, 'Toggled premium custom role');
 				await interaction.reply({
 					embeds: [createInfoEmbed('Your premium custom role has been added to your profile.')],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 			}
 		} catch (error) {
@@ -400,14 +405,14 @@ export class CustomRoleCommand extends Subcommand {
 						'I was unable to toggle your premium custom role. If this persists, please contact the admins.',
 					),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		}
 	}
 
 	public async deleteSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		await interaction.deferReply({
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 
 		const clanManager = new ClanManager(interaction.member);

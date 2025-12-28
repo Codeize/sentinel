@@ -1,6 +1,6 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
-import { ButtonInteraction, EmbedBuilder, GuildMember } from 'discord.js';
+import { ButtonInteraction, EmbedBuilder, GuildMember, MessageFlags } from 'discord.js';
 import { ClanManager, ClanMemberAddStatus, MAX_MEMBERS_IN_CLAN } from '../lib/abilities/ClanManager.js';
 import { createErrorEmbed, createInfoEmbed } from '../lib/utils/createEmbed.js';
 
@@ -50,7 +50,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				try {
 					await interaction.reply({
 						embeds: [createErrorEmbed('Only the clan owner can respond to this request.')],
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 					});
 				} catch (error) {
 					this.container.logger.error("Failed to send 'not owner' reply", error);
@@ -132,7 +132,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
 					embeds: [createErrorEmbed('Clan data could not be found. It might have been deleted.')],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 				return;
 			}
@@ -145,7 +145,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
 					embeds: [createErrorEmbed('There was a mismatch with the clan data. Please try again.')],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 				return;
 			}
@@ -164,7 +164,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
 					embeds: [createErrorEmbed('The user who requested to join could not be found.')],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 				return;
 			}
@@ -174,7 +174,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
 					embeds: [createErrorEmbed('The clan role seems to have been deleted.')],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 				return;
 			}
@@ -202,7 +202,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				await updateOriginalMessage('Full');
 				await interaction.followUp({
 					embeds: [createErrorEmbed(`Your clan **${clanRole.name}** is full.`)],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 				return;
 			}
@@ -211,7 +211,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				await updateOriginalMessage('Already Joined');
 				await interaction.followUp({
 					embeds: [createErrorEmbed(`${requester.user.tag} is already in your clan.`)],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 				return;
 			}
@@ -259,7 +259,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 					embeds: [
 						createErrorEmbed(`Failed to add member: ${ClanManager.getMemberAddStatusMessage(addStatus)}`),
 					],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 			}
 		} catch (error) {
@@ -274,7 +274,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 							'An unexpected error occurred while processing the request. Please check the bot logs or try again later.',
 						),
 					],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 			} catch (followUpError) {
 				this.container.logger.error(

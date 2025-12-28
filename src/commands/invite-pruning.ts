@@ -1,6 +1,6 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
-import { PermissionFlagsBits } from 'discord-api-types/v10';
+import { MessageFlags, PermissionFlagsBits } from 'discord-api-types/v10';
 import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 
 @ApplyOptions<Subcommand.Options>({
@@ -27,7 +27,7 @@ export class MediaOnlyMessagesCommand extends Subcommand {
 
 		if (existent) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`Automatic invite pruning is already enabled in this server`)],
 			});
 
@@ -50,7 +50,7 @@ export class MediaOnlyMessagesCommand extends Subcommand {
 
 		if (!existent) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`Automatic invite pruning is not enabled in this server`)],
 			});
 

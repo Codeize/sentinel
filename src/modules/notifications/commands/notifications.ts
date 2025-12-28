@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
+import { MessageFlags } from 'discord-api-types/v10';
 import {
 	PermissionFlagsBits,
 	type GuildTextBasedChannel,
@@ -45,7 +46,7 @@ export class NotificationsCommand extends Subcommand {
 				.length !== 0
 		) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`I cannot see or send messages in the <#${channel.id}> channel!`)],
 			});
 
@@ -75,7 +76,7 @@ export class NotificationsCommand extends Subcommand {
 
 		if (!entry || entry.guildId !== interaction.guildId) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`No notification message with id ${inlineCode(code)} found`)],
 			});
 
@@ -114,7 +115,7 @@ export class NotificationsCommand extends Subcommand {
 
 		if (notifications.length === 0) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed('There are no notification messages configured in this guild')],
 			});
 
@@ -144,7 +145,7 @@ export class NotificationsCommand extends Subcommand {
 
 		if (!entry || entry.guildId !== interaction.guildId) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`No notification message with id ${inlineCode(code)} found`)],
 			});
 

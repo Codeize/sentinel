@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { Duration, Time } from '@sapphire/time-utilities';
-import { ChannelType, PermissionFlagsBits } from 'discord-api-types/v10';
+import { ChannelType, MessageFlags, PermissionFlagsBits } from 'discord-api-types/v10';
 import { AttachmentBuilder, type GuildTextBasedChannel } from 'discord.js';
 import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 import { durationFormat } from '../lib/utils.js';
@@ -50,7 +50,7 @@ export class AutoPinCommand extends Subcommand {
 				.length !== 0
 		) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`I cannot see or send messages in the <#${channel.id}> channel!`)],
 			});
 
@@ -59,7 +59,7 @@ export class AutoPinCommand extends Subcommand {
 
 		if (me.permissionsIn(channel).missing(PermissionFlagsBits.ReadMessageHistory, true).length !== 0) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`I don't have the permission to read the message history in <#${channel.id}>! Give me that permission and run the command again!`,
@@ -77,7 +77,7 @@ export class AutoPinCommand extends Subcommand {
 
 		if (Number.isNaN(checkEveryOffset)) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`The time interval you entered does not seem to be valid. Try something like "15 minutes"!`,
@@ -126,7 +126,7 @@ export class AutoPinCommand extends Subcommand {
 
 		if (!entry || entry.guild_id !== interaction.guildId) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`No auto-pinned message with id ${inlineCode(code)} found`)],
 			});
 
@@ -170,7 +170,7 @@ export class AutoPinCommand extends Subcommand {
 
 		if (autoPins.length === 0) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed('There are no auto-pinned messages configured in this guild')],
 			});
 
@@ -203,7 +203,7 @@ export class AutoPinCommand extends Subcommand {
 
 		if (!entry || entry.guild_id !== interaction.guildId) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`No auto-pinned message with id ${inlineCode(code)} found`)],
 			});
 

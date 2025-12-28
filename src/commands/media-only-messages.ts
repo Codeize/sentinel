@@ -1,6 +1,6 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
-import { PermissionFlagsBits } from 'discord-api-types/v10';
+import { MessageFlags, PermissionFlagsBits } from 'discord-api-types/v10';
 import { addMediaOnlyChannel, removeMediaOnlyChannel } from '../lib/utils/caches/mediaOnlyCache.js';
 import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 
@@ -35,7 +35,7 @@ export class MediaOnlyMessagesCommand extends Subcommand {
 
 		if (existent) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`The <#${channel.id}> channel is already configured to require attachments when sending messages`,
@@ -66,7 +66,7 @@ export class MediaOnlyMessagesCommand extends Subcommand {
 
 		if (!existent) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`The <#${channel.id}> channel is not configured to require attachments when sending messages`,
@@ -95,7 +95,7 @@ export class MediaOnlyMessagesCommand extends Subcommand {
 
 		if (channels.length === 0) {
 			await interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed('No channels are configured to require attachments when sending messages')],
 			});
 

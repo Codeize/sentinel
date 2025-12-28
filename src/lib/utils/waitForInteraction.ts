@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { MessageFlags } from 'discord-api-types/v10';
 import {
 	ActionRowBuilder,
 	ButtonBuilder,
@@ -67,7 +68,7 @@ export async function waitForButtonConfirm(
 		collector.on('collect', async (interaction: MessageComponentInteraction) => {
 			if (options?.restrictToId && options.restrictToId !== interaction.user.id) {
 				interaction
-					.reply({ content: `You are not permitted to use these buttons.`, ephemeral: true })
+					.reply({ content: `You are not permitted to use these buttons.`, flags: MessageFlags.Ephemeral })
 					// eslint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks
 					.catch((error) => console.trace(error.message));
 

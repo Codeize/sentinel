@@ -4,7 +4,7 @@ import { ApplyOptions } from '@sapphire/decorators';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { Duration } from '@sapphire/time-utilities';
 import { chunk } from '@sapphire/utilities';
-import { ButtonStyle, PermissionFlagsBits } from 'discord-api-types/v10';
+import { ButtonStyle, MessageFlags, PermissionFlagsBits } from 'discord-api-types/v10';
 import { ActionRowBuilder, ButtonBuilder } from 'discord.js';
 import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 import { generatePollEmbedDescription } from '../lib/utils/polls/generatePollEmbed.js';
@@ -78,7 +78,7 @@ export class PollCommand extends Subcommand {
 		await this.container.client.schedule.add('endPoll', parsedEndAfter, JSON.stringify({ pollId: poll.id }));
 
 		await interaction.reply({
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 			embeds: [
 				createInfoEmbed(`The poll with id \`${poll.id}\` was created! It will end at ${time(parsedEndAfter)}`),
 			],

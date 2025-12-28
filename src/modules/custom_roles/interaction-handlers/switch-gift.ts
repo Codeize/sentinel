@@ -1,5 +1,6 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
+import { MessageFlags } from 'discord-api-types/v10';
 import type { ButtonInteraction } from 'discord.js';
 import { createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 
@@ -35,7 +36,7 @@ export class SwitchGiftedRole extends InteractionHandler {
 		if (interaction.user.id !== data.originalUser) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('This maze was not meant for you.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;

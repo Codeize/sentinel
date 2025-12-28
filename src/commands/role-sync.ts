@@ -3,7 +3,7 @@ import { ApplyOptions } from '@sapphire/decorators';
 import { PaginatedMessage } from '@sapphire/discord.js-utilities';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { chunk } from '@sapphire/utilities';
-import { PermissionFlagsBits } from 'discord-api-types/v10';
+import { MessageFlags, PermissionFlagsBits } from 'discord-api-types/v10';
 import type { ApplicationCommandOptionChoiceData, Guild } from 'discord.js';
 import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 import { trimPretty } from '../lib/utils/trim.js';
@@ -39,7 +39,7 @@ export class RoleSyncCommand extends Subcommand {
 
 		if (!resolvedOriginGuild) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`Could not resolve the guild you provided.`)],
 			});
 		}
@@ -48,14 +48,14 @@ export class RoleSyncCommand extends Subcommand {
 
 		if (!originRole) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`Could not resolve the role you provided in ${resolvedOriginGuild.name}.`)],
 			});
 		}
 
 		if (roleInThisServer.managed) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`The role ${roleInThisServer.toString()} (${
@@ -70,7 +70,7 @@ export class RoleSyncCommand extends Subcommand {
 
 		if (me.roles.highest.position <= roleInThisServer.position) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					createInfoEmbed(
 						`I do not have permission to assign the role ${roleInThisServer} in this server as its above my highest role.`,
@@ -115,7 +115,7 @@ export class RoleSyncCommand extends Subcommand {
 					);
 				} catch (error) {
 					await interaction.followUp({
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 						embeds: [
 							createInfoEmbed(
 								`Failed to role sync ${memberInCurrentServer.user.tag} (${memberInCurrentServer.user.id}): ${
@@ -133,7 +133,7 @@ export class RoleSyncCommand extends Subcommand {
 					);
 				} catch (error) {
 					await interaction.followUp({
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 						embeds: [
 							createInfoEmbed(
 								`Failed to role sync ${memberInCurrentServer.user.tag} (${memberInCurrentServer.user.id}): ${
@@ -157,7 +157,7 @@ export class RoleSyncCommand extends Subcommand {
 
 		if (!resolvedFilter) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`Could not resolve the role sync entry you provided.`)],
 			});
 		}
@@ -168,7 +168,7 @@ export class RoleSyncCommand extends Subcommand {
 
 		if (!entry) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`Could not find a role sync entry with the provided id.`)],
 			});
 		}
@@ -203,7 +203,7 @@ export class RoleSyncCommand extends Subcommand {
 
 		if (roleSyncs.length === 0) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`No role syncs have been setup in this server.`)],
 			});
 		}
@@ -242,7 +242,7 @@ export class RoleSyncCommand extends Subcommand {
 
 		if (usableRoleSyncs.length === 0) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [createInfoEmbed(`No role syncs have been setup in this server.`)],
 			});
 		}

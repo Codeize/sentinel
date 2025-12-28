@@ -1,5 +1,5 @@
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, time, TimestampStyles } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, time, TimestampStyles } from 'discord.js';
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
 import { RoleAbilitiesCalculator } from '../../../lib/abilities/RoleAbilities.js';
 import { createInfoEmbed } from '../../../lib/utils/createEmbed.js';
@@ -30,7 +30,7 @@ export class GiftCommand extends Subcommand {
 		if (!guildConfig?.legendRoleId || roleAbilitiesCalculator.getPremiumRoleIds('canGiftLegend').length < 1) {
 			await interaction.reply({
 				embeds: [createInfoEmbed(`This server doesn't support gifting the Legends Subscription role.`)],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 			return;
 		}
@@ -38,7 +38,7 @@ export class GiftCommand extends Subcommand {
 		if (!memberAbilities.hasAbility('canGiftLegend')) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('You do not have the ability to gift the Legends Subscription role.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -54,7 +54,7 @@ export class GiftCommand extends Subcommand {
 		if (!targetMember) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('I was unable to find the user you mentioned in this server.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -70,7 +70,7 @@ export class GiftCommand extends Subcommand {
 							`You'll be able to gift or transfer the Legend Subscription ${time(privilegedMember.giftingCooldown, TimestampStyles.RelativeTime)}`,
 						),
 					],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 
 				return;
@@ -97,7 +97,7 @@ export class GiftCommand extends Subcommand {
 							'I was unable to gift the role to the user. Please try again later, and if this error persists, contact the admins.',
 						),
 					],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 
 				return;
@@ -120,7 +120,7 @@ export class GiftCommand extends Subcommand {
 						`You have successfully gifted a Legend Subscription to ${user.toString()}.\n\nUse the command again to switch the Legend role to a different user. You can only gift one Legend role at a time.`,
 					),
 				],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -133,7 +133,7 @@ export class GiftCommand extends Subcommand {
 		if (previousGiftedMember?.id === user.id) {
 			await interaction.reply({
 				embeds: [createInfoEmbed('You have already gifted the Legend Subscription to this user.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
@@ -145,7 +145,7 @@ export class GiftCommand extends Subcommand {
 					`Are you sure you want to switch the gifted subscription from ${previousGiftedMember?.user.toString() ?? 'nobody'} to ${user.toString()}?`,
 				),
 			],
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 			components: [
 				new ActionRowBuilder<ButtonBuilder>().addComponents(
 					new ButtonBuilder()

@@ -1,6 +1,7 @@
 import type { Prisma, VoteKick } from '@prisma/client';
 import { container } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
+import { MessageFlags } from 'discord-api-types/v10';
 import type { ChatInputCommandInteraction, User, VoiceChannel } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { getMessageUrlFromInteractionResponse, toReadableUser } from '../utils.js';
@@ -92,7 +93,7 @@ export async function announceAlreadyStartedVoteKick(
 	kick: VoteKick,
 ) {
 	await interaction.reply({
-		ephemeral: true,
+		flags: MessageFlags.Ephemeral,
 		embeds: [
 			new EmbedBuilder()
 				.setColor('Red')

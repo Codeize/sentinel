@@ -1,17 +1,17 @@
 import { PaginatedMessage } from '@sapphire/discord.js-utilities';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import { chunk } from '@sapphire/utilities';
-import { ChannelType } from 'discord-api-types/v10';
+import { ChannelType, MessageFlags } from 'discord-api-types/v10';
 import {
 	ActionRowBuilder,
+	type ApplicationCommandOptionChoiceData,
+	type AutocompleteInteraction,
 	ButtonBuilder,
 	ButtonStyle,
 	Collection,
-	type MessageComponentInteraction,
-	type AutocompleteInteraction,
-	type ApplicationCommandOptionChoiceData,
 	EmbedBuilder,
 	InteractionContextType,
+	type MessageComponentInteraction,
 	PermissionsBitField,
 	time,
 	TimestampStyles,
@@ -108,7 +108,7 @@ export class ClanCommand extends Subcommand {
 	];
 
 	public async createSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const description = interaction.options.getString('description');
 
@@ -154,7 +154,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async deleteSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const clanManager = new ClanManager(interaction.member);
 
@@ -212,7 +212,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async inviteSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const memberToInvite = interaction.options.getMember('member');
 
@@ -342,7 +342,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async joinSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>): Promise<void> {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const targetClanOwnerId = interaction.options.getString('clan', true);
 
@@ -518,7 +518,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async kickSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const memberToKick = interaction.options.getMember('member');
 
@@ -547,7 +547,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async toggleClaimSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const claimEnabled = interaction.options.getBoolean('enabled', true);
 		const clanManager = new ClanManager(interaction.member);
@@ -587,7 +587,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async leaveSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		if (interaction.channel?.type !== ChannelType.GuildText) {
 			await interaction.editReply({
@@ -662,7 +662,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async claimRoleSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 		await ensureFullMember(interaction.member);
 
 		if (interaction.channel?.type !== ChannelType.GuildText) {
@@ -719,7 +719,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async unclaimRoleSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 		await ensureFullMember(interaction.member);
 
 		if (interaction.channel?.type !== ChannelType.GuildText) {
@@ -766,7 +766,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async setDescriptionSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const newDescription = interaction.options.getString('description', true);
 
@@ -833,7 +833,7 @@ export class ClanCommand extends Subcommand {
 	}
 
 	public async membersSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const clanManager = new ClanManager(interaction.member);
 		const clan = await clanManager.getClan();
@@ -1103,7 +1103,7 @@ export class ClanCommand extends Subcommand {
 		interaction: Subcommand.ChatInputCommandInteraction<'cached'>,
 		newVisibilityState: boolean,
 	) {
-		await interaction.deferReply({ ephemeral: true });
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const clanManager = new ClanManager(interaction.member);
 		const clan = await clanManager.getClan();

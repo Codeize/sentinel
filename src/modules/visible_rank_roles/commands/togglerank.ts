@@ -1,6 +1,7 @@
 import { RoleSyncType } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
 import { Command } from '@sapphire/framework';
+import { MessageFlags } from 'discord-api-types/v10';
 import { type Message, type TextChannel } from 'discord.js';
 import { createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 import { ensureFullMember } from '../../../lib/utils.js';
@@ -22,7 +23,7 @@ export class ToggleRankCommand extends Command {
 
 	public override async chatInputRun(interaction: Command.ChatInputCommandInteraction<'cached'>) {
 		await interaction.deferReply({
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 
 		const memberData = await this.container.prisma.guildMember.findUnique({

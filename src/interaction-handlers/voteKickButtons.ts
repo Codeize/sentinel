@@ -1,5 +1,6 @@
 import { ApplyOptions } from '@sapphire/decorators';
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
+import { MessageFlags } from 'discord-api-types/v10';
 import type { ButtonInteraction, Message } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { getMemberFromInteraction } from '../lib/utils.js';
@@ -47,7 +48,7 @@ export class ButtonHandler extends InteractionHandler {
 		// If it's not present, the vote was concluded already
 		if (!previousVote) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					new EmbedBuilder().setColor('Red').setDescription("Couldn't find a vote kick for that message!"),
 				],
@@ -56,7 +57,7 @@ export class ButtonHandler extends InteractionHandler {
 
 		if (member.voice.channelId !== voiceChannelId) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [
 					new EmbedBuilder()
 						.setColor('Red')
@@ -73,7 +74,7 @@ export class ButtonHandler extends InteractionHandler {
 			(action === 'no' && previousVote.voters_disagreeing_with_kick.includes(userWhoInteractedWithButton.id))
 		) {
 			return interaction.reply({
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 				embeds: [new EmbedBuilder().setColor('Red').setDescription('You cannot cast the same vote!')],
 			});
 		}
@@ -135,7 +136,7 @@ export class ButtonHandler extends InteractionHandler {
 
 		// Let the user know we've recorded their vote
 		return interaction.followUp({
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 			embeds: [new EmbedBuilder().setColor('Green').setDescription('Your vote was casted successfully')],
 		});
 	}
