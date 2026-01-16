@@ -246,7 +246,16 @@ export class ClanAdminCommand extends Subcommand {
 			return;
 		}
 
-		const status = await clanManager.removeMember(memberToRemove);
+		let status: ClanMemberRemoveStatus;
+		try {
+			status = await clanManager.removeMember(memberToRemove);
+		} catch (error) {
+			this.container.logger.error('Error removing member from clan:', error);
+			await this.replyWithComponents(interaction, [
+				this.errorMessage('An error occurred while removing the member. They may not be in this clan.'),
+			]);
+			return;
+		}
 
 		if (status !== ClanMemberRemoveStatus.Removed) {
 			await this.replyWithComponents(interaction, [
