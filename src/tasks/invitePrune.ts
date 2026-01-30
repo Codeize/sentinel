@@ -1,7 +1,7 @@
 import { Result } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
-import { Task } from '../lib/schedule/tasks/Task.js';
 import { DiscordAPIError } from 'discord.js';
+import { Task } from '../lib/schedule/tasks/Task.js';
 
 const header = '[INVITE PRUNE] ';
 
