@@ -1,12 +1,12 @@
 import { RoleSyncType } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
-import { Events, Listener } from '@sapphire/framework';
-import type { Guild, GuildMember } from 'discord.js';
+import { Listener } from '@sapphire/framework';
+import type { Guild } from 'discord.js';
 import { Collection } from 'discord.js';
 
 const header = '[ROLE SYNC] ';
 
-@ApplyOptions<Listener.Options>({ event: Events.ClientReady })
+@ApplyOptions<Listener.Options>({ event: 'membersCached' })
 export class SyncRolesOnReady extends Listener {
 	public async run() {
 		const entries = await this.container.prisma.roleSync.findMany({
@@ -29,71 +29,60 @@ export class SyncRolesOnReady extends Listener {
 			guildIds.add(entry.destination_guild_id);
 		}
 
-		// Fetch all members for these guilds
-		const membersByGuild = new Collection<Guild, Collection<string, GuildMember>>();
-
+		// Resolve guilds we care about
+		const guilds = new Collection<string, Guild>();
 		for (const id of guildIds) {
 			const guild = this.container.client.guilds.resolve(id);
 			if (!guild) {
 				continue;
 			}
 
-			const members = await guild.members.fetch();
-
-			membersByGuild.set(guild, members);
+			this.container.logger.info(
+				`${header}  Found guild ${guild.name} with ${guild.members.cache.size} cached members`,
+			);
+			guilds.set(id, guild);
 		}
 
 		// ACTUAL SYNC //
-		for (const [guild, members] of membersByGuild.entries()) {
-			// Go through each role entry for this guild
-			for (const entry of entries) {
-				// Ensure the origin guild id is the one we want
-				if (entry.origin_guild_id !== guild.id) {
+		for (const entry of entries) {
+			const originGuild = guilds.get(entry.origin_guild_id);
+			const destinationGuild = guilds.get(entry.destination_guild_id);
+
+			if (!originGuild || !destinationGuild) {
+				continue;
+			}
+
+			// Iterate through cached origin members
+			for (const originMember of originGuild.members.cache.values()) {
+				// Use fetch(userId) - returns from cache if available, fetches from API if not
+				const destinationMember = await destinationGuild.members.fetch(originMember.id).catch(() => null);
+				if (!destinationMember) {
 					continue;
 				}
 
-				// Find the members for the destination guild
-				const destinationGuild = membersByGuild.findKey(
-					(_, innerGuild) => innerGuild.id === entry.destination_guild_id,
-				);
-
-				if (!destinationGuild) {
-					continue;
-				}
-
-				const destinationMembers = membersByGuild.get(destinationGuild)!;
-
-				for (const originMember of members.values()) {
-					// See if they are a member in the guild, and add/remove the role if we can
-					const destinationMember = destinationMembers.get(originMember.id);
-					if (!destinationMember) {
-						continue;
+				if (originMember.roles.cache.has(entry.origin_role_id)) {
+					try {
+						await destinationMember.roles.add(
+							entry.destination_role_id,
+							`Role sync: adding role as they have it in ${originGuild.name}`,
+						);
+					} catch (error) {
+						this.container.logger.warn(
+							`${header}  Failed to add role ${entry.destination_role_id} to ${destinationMember.user.tag}`,
+							error,
+						);
 					}
-
-					if (originMember.roles.cache.has(entry.origin_role_id)) {
-						try {
-							await destinationMember.roles.add(
-								entry.destination_role_id,
-								`Role sync: adding role as they have it in ${guild.name}`,
-							);
-						} catch (error) {
-							this.container.logger.warn(
-								`${header}  Failed to add role ${entry.destination_role_id} to ${destinationMember.user.tag}`,
-								error,
-							);
-						}
-					} else {
-						try {
-							await destinationMember.roles.remove(
-								entry.destination_role_id,
-								`Role sync: removing role as they do not have it in ${guild.name}`,
-							);
-						} catch (error) {
-							this.container.logger.warn(
-								`${header}  Failed to remove role ${entry.destination_role_id} from ${destinationMember.user.tag}`,
-								error,
-							);
-						}
+				} else {
+					try {
+						await destinationMember.roles.remove(
+							entry.destination_role_id,
+							`Role sync: removing role as they do not have it in ${originGuild.name}`,
+						);
+					} catch (error) {
+						this.container.logger.warn(
+							`${header}  Failed to remove role ${entry.destination_role_id} from ${destinationMember.user.tag}`,
+							error,
+						);
 					}
 				}
 			}

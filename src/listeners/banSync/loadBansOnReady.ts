@@ -1,6 +1,6 @@
 import type { SharedGuildBan } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
-import { Events, Listener } from '@sapphire/framework';
+import { Listener } from '@sapphire/framework';
 import { PermissionFlagsBits } from 'discord-api-types/v10';
 import { useGuildIdsToSyncBansIn } from '../../lib/utils/hooks/useGuildIdsToSyncBansIn.js';
 import { ensureFullMember } from '../../lib/utils.js';
@@ -8,7 +8,7 @@ import { ensureFullMember } from '../../lib/utils.js';
 const header = '[BAN SYNC] ';
 
 @ApplyOptions<Listener.Options>({
-	event: Events.ClientReady,
+	event: 'membersCached',
 })
 export class LoadBansOnReady extends Listener {
 	public async run() {
@@ -104,11 +104,11 @@ export class LoadBansOnReady extends Listener {
 				continue;
 			}
 
-			// Fetch all guild members
+			// Use cached members (already fetched by clientReady)
 			this.container.logger.info(
-				`${header}  Fetching all members of guild ${guild.name} (${guild.id}) - this might take a while...`,
+				`${header}  Using ${guild.members.cache.size} cached members for guild ${guild.name} (${guild.id})`,
 			);
-			const members = await guild.members.fetch();
+			const members = guild.members.cache;
 
 			for (const [id, fetchedMember] of members) {
 				// Ensure member is fully hydrated before accessing user properties
