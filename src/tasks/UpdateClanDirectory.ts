@@ -5,8 +5,9 @@ import type { GuildTextBasedChannel, Message, Role } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { MAX_MEMBERS_IN_CLAN } from '../lib/abilities/ClanManager.js';
 import { Task } from '../lib/schedule/tasks/Task.js';
+import { LogPrefix } from '../lib/utils/logPrefix.js';
 
-const header = '[CLAN DIRECTORY] ';
+const header = LogPrefix.CLAN_DIRECTORY;
 
 const MAX_EMBEDS_PER_MESSAGE = 10;
 const MAX_FIELDS_PER_EMBED = 25;
@@ -245,7 +246,7 @@ export class UpdateClanDirectory extends Task {
 			)) as RESTGetAPIApplicationEmojisResult;
 			existing = response?.items || [];
 		} catch (error) {
-			this.container.logger.error('[ICON SYNC] Failed to fetch existing application emojis:', error);
+			this.container.logger.error(`${LogPrefix.ICON_SYNC} Failed to fetch existing application emojis:`, error);
 		}
 
 		const storedIconHashes = await this.container.prisma.clanEmojiCache.findMany();
@@ -289,7 +290,10 @@ export class UpdateClanDirectory extends Task {
 
 				emojiMap.set(clan.customRoleId, createdEmoji);
 			} catch (error) {
-				this.container.logger.error(`[ICON SYNC] Failed to sync emoji for clan ${clan.name}:`, error);
+				this.container.logger.error(
+					`${LogPrefix.ICON_SYNC} Failed to sync emoji for clan ${clan.name}:`,
+					error,
+				);
 				if (existingEmoji) emojiMap.set(clan.customRoleId, { id: existingEmoji.id, name: emojiName });
 			}
 		}

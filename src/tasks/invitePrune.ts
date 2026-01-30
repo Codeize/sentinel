@@ -2,8 +2,9 @@ import { Result } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
 import { DiscordAPIError } from 'discord.js';
 import { Task } from '../lib/schedule/tasks/Task.js';
+import { LogPrefix } from '../lib/utils/logPrefix.js';
 
-const header = '[INVITE PRUNE] ';
+const header = LogPrefix.INVITE_PRUNE;
 
 export class InvitePrune extends Task {
 	public override async run() {

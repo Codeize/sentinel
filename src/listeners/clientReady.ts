@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/node';
 import { cyanBright, green, magenta } from 'colorette';
 import { OAuth2Scopes, PermissionFlagsBits } from 'discord-api-types/v10';
 import { loadMediaOnlyChannels } from '../lib/utils/caches/mediaOnlyCache.js';
+import { LogPrefix } from '../lib/utils/logPrefix.js';
 
 declare module 'discord.js' {
 	interface ClientEvents {
@@ -65,7 +66,7 @@ export class ClientReadyEvent extends Listener {
 		const guilds = [...client.guilds.cache.values()];
 		const totalGuilds = guilds.length;
 
-		logger.info(`[MEMBER CACHE] Starting member fetch for ${totalGuilds} guild(s)...`);
+		logger.info(`${LogPrefix.MEMBER_CACHE} Starting member fetch for ${totalGuilds} guild(s)...`);
 		Sentry.addBreadcrumb({
 			category: 'startup',
 			message: `Starting member fetch for ${totalGuilds} guilds`,
@@ -81,7 +82,9 @@ export class ClientReadyEvent extends Listener {
 			const remaining = totalGuilds - index - 1;
 
 			try {
-				logger.info(`[MEMBER CACHE] ${progress} Fetching members for "${guild.name}" (${guild.id})...`);
+				logger.info(
+					`${LogPrefix.MEMBER_CACHE} ${progress} Fetching members for "${guild.name}" (${guild.id})...`,
+				);
 				Sentry.addBreadcrumb({
 					category: 'startup',
 					message: `Fetching members for guild ${guild.name}`,
@@ -96,7 +99,7 @@ export class ClientReadyEvent extends Listener {
 				totalMembersCached += memberCount;
 
 				logger.info(
-					`[MEMBER CACHE] ${progress} Fetched ${memberCount.toLocaleString()} members for "${guild.name}"` +
+					`${LogPrefix.MEMBER_CACHE} ${progress} Fetched ${memberCount.toLocaleString()} members for "${guild.name}"` +
 						(remaining > 0 ? ` (${remaining} guild(s) remaining)` : ''),
 				);
 				Sentry.addBreadcrumb({
@@ -108,7 +111,7 @@ export class ClientReadyEvent extends Listener {
 			} catch (error) {
 				failCount++;
 				logger.error(
-					`[MEMBER CACHE] ${progress} FAILED to fetch members for "${guild.name}" (${guild.id}):`,
+					`${LogPrefix.MEMBER_CACHE} ${progress} FAILED to fetch members for "${guild.name}" (${guild.id}):`,
 					error,
 				);
 				Sentry.addBreadcrumb({
@@ -126,7 +129,7 @@ export class ClientReadyEvent extends Listener {
 		}
 
 		logger.info(
-			`[MEMBER CACHE] Complete! Cached ${totalMembersCached.toLocaleString()} members across ${successCount} guild(s)` +
+			`${LogPrefix.MEMBER_CACHE} Complete! Cached ${totalMembersCached.toLocaleString()} members across ${successCount} guild(s)` +
 				(failCount > 0 ? ` (${failCount} failed)` : '') +
 				'. Emitting membersCached event.',
 		);

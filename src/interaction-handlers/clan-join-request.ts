@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/node';
 import { ButtonInteraction, EmbedBuilder, GuildMember, MessageFlags } from 'discord.js';
 import { ClanManager, ClanMemberAddStatus, MAX_MEMBERS_IN_CLAN } from '../lib/abilities/ClanManager.js';
 import { createErrorEmbed, createInfoEmbed } from '../lib/utils/createEmbed.js';
+import { LogPrefix } from '../lib/utils/logPrefix.js';
 
 // Custom ID format: clan.join.<accept|deny>:<requesterId>:<ownerId>:<clanRoleId>
 export function makeClanJoinRequestId(
@@ -29,7 +30,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 		const parts = interaction.customId.split(':');
 		if (parts.length !== 4) {
 			this.container.logger.debug(
-				`[CLAN JOIN REQ PARSE] Invalid parts length: ${parts.length}. ID: ${interaction.customId}`,
+				`${LogPrefix.CLAN_JOIN_REQUEST} Invalid parts length: ${parts.length}. ID: ${interaction.customId}`,
 			);
 			return this.none();
 		}
@@ -40,7 +41,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 
 		if (!action || (action !== 'accept' && action !== 'deny')) {
 			this.container.logger.debug(
-				`[CLAN JOIN REQ PARSE] Invalid action part: ${action}. ID: ${interaction.customId}`,
+				`${LogPrefix.CLAN_JOIN_REQUEST} Invalid action part: ${action}. ID: ${interaction.customId}`,
 			);
 			return this.none();
 		}
@@ -62,7 +63,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 		}
 
 		this.container.logger.debug(
-			`[CLAN JOIN REQ PARSE] Parsed successfully. Action: ${action}, Requester: ${requesterId}, Owner: ${ownerId}, Role: ${clanRoleId}`,
+			`${LogPrefix.CLAN_JOIN_REQUEST} Parsed successfully. Action: ${action}, Requester: ${requesterId}, Owner: ${ownerId}, Role: ${clanRoleId}`,
 		);
 
 		return this.some({
@@ -90,14 +91,14 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 		});
 
 		this.container.logger.info(
-			`[CLAN JOIN REQ HANDLER] Running handler for interaction ${interaction.id}. Guild: ${interaction.guildId}. Data: ${JSON.stringify(data)}`,
+			`${LogPrefix.CLAN_JOIN_REQUEST} Running handler for interaction ${interaction.id}. Guild: ${interaction.guildId}. Data: ${JSON.stringify(data)}`,
 		);
 
 		const updateOriginalMessage = async (result: UpdateMessageResult) => {
 			try {
 				if (!interaction.message?.embeds?.[0]) {
 					this.container.logger.error(
-						`[CLAN JOIN REQ HANDLER] Original message ${interaction.message.id} is missing embeds.`,
+						`${LogPrefix.CLAN_JOIN_REQUEST} Original message ${interaction.message.id} is missing embeds.`,
 					);
 					return;
 				}
@@ -113,7 +114,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				await interaction.editReply({ embeds: [originalEmbed], components: [] });
 			} catch (error) {
 				this.container.logger.error(
-					`[CLAN JOIN REQ HANDLER] Failed to edit original request message ${interaction.message.id}`,
+					`${LogPrefix.CLAN_JOIN_REQUEST} Failed to edit original request message ${interaction.message.id}`,
 					error,
 				);
 			}
@@ -124,12 +125,14 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			const clanOwner = interaction.member as GuildMember;
 
 			// --- Use ClanManager ---
-			this.container.logger.info(`[CLAN JOIN REQ HANDLER] Instantiating ClanManager for owner ${clanOwner.id}.`);
+			this.container.logger.info(
+				`${LogPrefix.CLAN_JOIN_REQUEST} Instantiating ClanManager for owner ${clanOwner.id}.`,
+			);
 			const clanManager = new ClanManager(clanOwner);
 
 			// --- Fetch Clan Data via ClanManager ---
 			this.container.logger.info(
-				`[CLAN JOIN REQ HANDLER] Fetching clan data (role ${clanRoleId}) with members for validation.`,
+				`${LogPrefix.CLAN_JOIN_REQUEST} Fetching clan data (role ${clanRoleId}) with members for validation.`,
 			);
 			const clan = await clanManager.getClan();
 			const clanRole = await clanManager.getCustomRole(); // Fetches the role associated with the owner
@@ -140,7 +143,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			// Check if clan and role (which is tied to clan) exist
 			if (!clan || !clanRole) {
 				this.container.logger.error(
-					`[CLAN JOIN REQ HANDLER] Clan data or role not found for owner ${clanOwner.id}.`,
+					`${LogPrefix.CLAN_JOIN_REQUEST} Clan data or role not found for owner ${clanOwner.id}.`,
 				);
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
@@ -153,7 +156,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			// This check ensures the handler is for the correct clan, as clanRoleId is in the customId
 			if (clan.customRoleId !== clanRoleId) {
 				this.container.logger.error(
-					`[CLAN JOIN REQ HANDLER] Mismatch! Handler for role ${clanRoleId} but owner's clan role is ${clan.customRoleId}.`,
+					`${LogPrefix.CLAN_JOIN_REQUEST} Mismatch! Handler for role ${clanRoleId} but owner's clan role is ${clan.customRoleId}.`,
 				);
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
@@ -164,16 +167,16 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			}
 
 			this.container.logger.debug(
-				`[CLAN JOIN REQ HANDLER] Fetched clan object successfully. Member count: ${memberCount}`,
+				`${LogPrefix.CLAN_JOIN_REQUEST} Fetched clan object successfully. Member count: ${memberCount}`,
 			);
 
 			// --- Fetch Requester ---
-			this.container.logger.info(`[CLAN JOIN REQ HANDLER] Fetching requester ${requesterId}`);
+			this.container.logger.info(`${LogPrefix.CLAN_JOIN_REQUEST} Fetching requester ${requesterId}`);
 			const requester = await interaction.guild.members.fetch(requesterId).catch(() => null);
 
 			// --- Validation Requester/Role ---
 			if (!requester) {
-				this.container.logger.warn(`[CLAN JOIN REQ HANDLER] Requester ${requesterId} not found.`);
+				this.container.logger.warn(`${LogPrefix.CLAN_JOIN_REQUEST} Requester ${requesterId} not found.`);
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
 					embeds: [createErrorEmbed('The user who requested to join could not be found.')],
@@ -183,7 +186,9 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			}
 
 			if (!clanRole) {
-				this.container.logger.warn(`[CLAN JOIN REQ HANDLER] Clan role ${clanRoleId} not found unexpectedly.`);
+				this.container.logger.warn(
+					`${LogPrefix.CLAN_JOIN_REQUEST} Clan role ${clanRoleId} not found unexpectedly.`,
+				);
 				await updateOriginalMessage('Error');
 				await interaction.followUp({
 					embeds: [createErrorEmbed('The clan role seems to have been deleted.')],
@@ -195,7 +200,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			// --- Handle Deny ---
 			if (action === 'deny') {
 				this.container.logger.info(
-					`[CLAN JOIN REQ HANDLER] Denying request for ${requesterId} to join ${clanRoleId}.`,
+					`${LogPrefix.CLAN_JOIN_REQUEST} Denying request for ${requesterId} to join ${clanRoleId}.`,
 				);
 				await updateOriginalMessage('Denied');
 				return;
@@ -203,12 +208,12 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 
 			// --- Handle Accept ---
 			this.container.logger.info(
-				`[CLAN JOIN REQ HANDLER] Processing ACCEPT for ${requesterId} to join ${clanRoleId}.`,
+				`${LogPrefix.CLAN_JOIN_REQUEST} Processing ACCEPT for ${requesterId} to join ${clanRoleId}.`,
 			);
 
 			// --- Perform Validations using ClanManager data ---
 			this.container.logger.info(
-				`[CLAN JOIN REQ HANDLER] Validating clan capacity (${memberCount}/${MAX_MEMBERS_IN_CLAN}), existing membership.`,
+				`${LogPrefix.CLAN_JOIN_REQUEST} Validating clan capacity (${memberCount}/${MAX_MEMBERS_IN_CLAN}), existing membership.`,
 			);
 
 			if (memberCount >= MAX_MEMBERS_IN_CLAN) {
@@ -235,7 +240,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 
 			// Attempt to add member
 			this.container.logger.info(
-				`[CLAN JOIN REQ HANDLER] Calling clanManager.inviteMember for requester ${requesterId}.`,
+				`${LogPrefix.CLAN_JOIN_REQUEST} Calling clanManager.inviteMember for requester ${requesterId}.`,
 			);
 
 			Sentry.addBreadcrumb({
@@ -247,7 +252,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 
 			const addStatus = await clanManager.inviteMember(requester.id, true);
 			this.container.logger.info(
-				`[CLAN JOIN REQ HANDLER] clanManager.inviteMember returned status: ${ClanMemberAddStatus[addStatus]} (${addStatus})`,
+				`${LogPrefix.CLAN_JOIN_REQUEST} clanManager.inviteMember returned status: ${ClanMemberAddStatus[addStatus]} (${addStatus})`,
 			);
 
 			Sentry.addBreadcrumb({
@@ -276,7 +281,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 						await clanChannel.send(`Welcome ${requester.toString()} to the clan!`);
 					} catch (error) {
 						this.container.logger.error(
-							`[CLAN JOIN REQ HANDLER] Failed to send welcome to clan channel ${clanChannel.id}`,
+							`${LogPrefix.CLAN_JOIN_REQUEST} Failed to send welcome to clan channel ${clanChannel.id}`,
 							error,
 						);
 					}
@@ -309,7 +314,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 			}
 		} catch (error) {
 			this.container.logger.error(
-				`[CLAN JOIN REQ HANDLER] UNEXPECTED ERROR during run for interaction ${interaction.id}:`,
+				`${LogPrefix.CLAN_JOIN_REQUEST} UNEXPECTED ERROR during run for interaction ${interaction.id}:`,
 				error,
 			);
 
@@ -336,7 +341,7 @@ export class ClanJoinRequestHandler extends InteractionHandler {
 				});
 			} catch (followUpError) {
 				this.container.logger.error(
-					`[CLAN JOIN REQ HANDLER] Failed to send follow-up error message for interaction ${interaction.id}:`,
+					`${LogPrefix.CLAN_JOIN_REQUEST} Failed to send follow-up error message for interaction ${interaction.id}:`,
 					followUpError,
 				);
 			}

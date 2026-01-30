@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/node';
 import { ClanManager } from '../lib/abilities/ClanManager.js';
 import { MemberAbilities } from '../lib/abilities/MemberAbilities.js';
 import { Task, type TaskRunData } from '../lib/schedule/tasks/Task.js';
+import { LogPrefix } from '../lib/utils/logPrefix.js';
 
 export type FixMode = 'dry-run' | 'fix-all' | 'fix-mismatches' | 'fix-missing';
 
@@ -25,7 +26,7 @@ export interface CheckPremiumMemberAbilitiesResult {
 	totalOrphanedClansWithoutTask: number;
 }
 
-const LOG_PREFIX = '[PREMIUM ABILITY CHECK]';
+const LOG_PREFIX = LogPrefix.PREMIUM_ABILITY_CHECK;
 
 function addBreadcrumb(message: string, data?: Record<string, unknown>, level: Sentry.SeverityLevel = 'info'): void {
 	Sentry.addBreadcrumb({

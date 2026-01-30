@@ -2,6 +2,7 @@ import { RoleSyncType } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
 import { Events, Listener, Result } from '@sapphire/framework';
 import type { GuildMember } from 'discord.js';
+import { LogPrefix } from '../../lib/utils/logPrefix.js';
 import { ensureFullMember } from '../../lib/utils.js';
 
 @ApplyOptions<Listener.Options>({ event: Events.GuildMemberAdd })
@@ -27,7 +28,7 @@ export class SyncRolesOnJoin extends Listener {
 			await maybeOriginMember.inspectAsync(async (originMember) => {
 				if (originMember.roles.cache.has(originRole.id)) {
 					this.container.logger.info(
-						`[ROLE SYNC] Adding role ${destinationRole.name} (${destinationRole.id}) to ${member.user.tag} (${member.user.id}) in guild ${member.guild.name} because they have the ${originRole.name} (${originRole.id}) role in ${originGuild.name}`,
+						`${LogPrefix.ROLE_SYNC} Adding role ${destinationRole.name} (${destinationRole.id}) to ${member.user.tag} (${member.user.id}) in guild ${member.guild.name} because they have the ${originRole.name} (${originRole.id}) role in ${originGuild.name}`,
 					);
 
 					try {
@@ -36,7 +37,7 @@ export class SyncRolesOnJoin extends Listener {
 							`Role sync: adding role as the member has it on the ${originGuild.name} server.`,
 						);
 					} catch (error) {
-						this.container.logger.warn(`[ROLE SYNC] Failed to process role sync`, error);
+						this.container.logger.warn(`${LogPrefix.ROLE_SYNC} Failed to process role sync`, error);
 					}
 				}
 			});

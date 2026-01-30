@@ -6,10 +6,11 @@ import { PermissionFlagsBits, RESTJSONErrorCodes } from 'discord-api-types/v10';
 import type { GuildBan } from 'discord.js';
 import { DiscordAPIError } from 'discord.js';
 import { useGuildIdsToSyncBansIn } from '../../lib/utils/hooks/useGuildIdsToSyncBansIn.js';
+import { LogPrefix } from '../../lib/utils/logPrefix.js';
 
 const recentlySeenBanEvents = new Map<string, { at: number; userId: string }>();
 const recentlySeenUnbanEvents = new Map<string, { at: number; userId: string }>();
-const header = '[BAN SYNC] ';
+const header = LogPrefix.BAN_SYNC;
 
 setInterval(() => {
 	for (const [userId, { at }] of recentlySeenBanEvents) {

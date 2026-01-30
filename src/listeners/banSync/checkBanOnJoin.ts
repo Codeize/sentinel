@@ -3,9 +3,10 @@ import { Events, Listener } from '@sapphire/framework';
 import { PermissionFlagsBits } from 'discord-api-types/v10';
 import type { GuildMember } from 'discord.js';
 import { useGuildIdsToSyncBansIn } from '../../lib/utils/hooks/useGuildIdsToSyncBansIn.js';
+import { LogPrefix } from '../../lib/utils/logPrefix.js';
 import { ensureFullMember } from '../../lib/utils.js';
 
-const header = '[BAN SYNC] ';
+const header = LogPrefix.BAN_SYNC;
 
 @ApplyOptions<Listener.Options>({
 	event: Events.GuildMemberAdd,

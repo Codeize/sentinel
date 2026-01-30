@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/node';
 import { ChannelType } from 'discord-api-types/v10';
 import type { CategoryChannel, Guild, GuildMember, NonThreadGuildBasedChannel, Role, TextChannel } from 'discord.js';
 import { Collection } from 'discord.js';
+import { LogPrefix } from '../utils/logPrefix.js';
 import { ensureFullMember } from '../utils.js';
 import { MemberAbilities } from './MemberAbilities.js';
 
@@ -1437,7 +1438,7 @@ export class ClanManager {
 			.map((element) => `${element.id ? `${element.prefix}${element.id}` : ''}`)
 			.join('');
 
-		return `[CLAN ${ids}] `;
+		return `${LogPrefix.CLAN} [${ids}] `;
 	}
 
 	private doLog(log: readonly unknown[], level: Exclude<keyof ILogger, 'has' | 'write'> = 'info'): void {

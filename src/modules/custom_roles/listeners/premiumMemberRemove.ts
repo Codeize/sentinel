@@ -3,6 +3,7 @@ import { Events, Listener } from '@sapphire/framework';
 import * as Sentry from '@sentry/node';
 import type { GuildMember } from 'discord.js';
 import { ClanManager } from '../../../lib/abilities/ClanManager.js';
+import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 
 @ApplyOptions<Listener.Options>({ event: Events.GuildMemberRemove })
 export class GuildMemberRemove extends Listener<typeof Events.GuildMemberRemove> {
@@ -17,7 +18,7 @@ export class GuildMemberRemove extends Listener<typeof Events.GuildMemberRemove>
 			data: { ...tags, memberTag: member.user.tag },
 		});
 
-		this.container.logger.info(`[PREMIUM] ${member.user.tag} left the server`, {
+		this.container.logger.info(`${LogPrefix.PREMIUM} ${member.user.tag} left the server`, {
 			userId: member.id,
 			guildId: member.guild.id,
 		});

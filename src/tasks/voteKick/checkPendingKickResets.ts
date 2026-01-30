@@ -1,4 +1,5 @@
 import { Task } from '../../lib/schedule/tasks/Task.js';
+import { LogPrefix } from '../../lib/utils/logPrefix.js';
 
 export class CheckPendingKickResets extends Task {
 	public async run() {
@@ -12,7 +13,7 @@ export class CheckPendingKickResets extends Task {
 		});
 
 		if (!results.length) {
-			this.container.logger.info('[KICK COUNTER RESET] No users had their kick counters reset');
+			this.container.logger.info(`${LogPrefix.KICK_COUNTER_RESET} No users had their kick counters reset`);
 			return null;
 		}
 
@@ -29,8 +30,10 @@ export class CheckPendingKickResets extends Task {
 			},
 		});
 
-		this.container.logger.info(`[KICK COUNTER RESET] ${results.length} users had their kick counters reset`);
-		this.container.logger.info('[KICK COUNTER RESET]', JSON.stringify(results.map((it) => it.id)));
+		this.container.logger.info(
+			`${LogPrefix.KICK_COUNTER_RESET} ${results.length} users had their kick counters reset`,
+		);
+		this.container.logger.info(`${LogPrefix.KICK_COUNTER_RESET}`, JSON.stringify(results.map((it) => it.id)));
 
 		return null;
 	}

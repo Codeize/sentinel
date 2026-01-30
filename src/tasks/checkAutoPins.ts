@@ -2,9 +2,10 @@ import { PermissionFlagsBits } from 'discord-api-types/v10';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import type { GuildTextBasedChannel, Message, MessageCreateOptions } from 'discord.js';
 import { Task } from '../lib/schedule/tasks/Task.js';
+import { LogPrefix } from '../lib/utils/logPrefix.js';
 
 const indent = ' '.repeat(4);
-const header = '[AUTOPIN] ';
+const header = LogPrefix.AUTOPIN;
 
 export class CheckAutoPins extends Task {
 	public async run() {

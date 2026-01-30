@@ -2,6 +2,7 @@ import { ApplyOptions } from '@sapphire/decorators';
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import type { ButtonInteraction } from 'discord.js';
 import { ClanManager, ClanMemberAddStatus } from '../../../lib/abilities/ClanManager.js';
+import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 
 const welcomeMessages = [
 	'Quick, everyone! Hide!',
@@ -50,7 +51,9 @@ export class ClanInvite extends InteractionHandler {
 					components: [],
 				})
 				.catch((error) =>
-					this.container.logger.error(`[CLAN] (invite 2.10) Failed to update button interaction: ${error}`),
+					this.container.logger.error(
+						`${LogPrefix.CLAN} (invite 2.10) Failed to update button interaction: ${error}`,
+					),
 				);
 
 			return;
@@ -67,7 +70,9 @@ export class ClanInvite extends InteractionHandler {
 					components: [],
 				})
 				.catch((error) =>
-					this.container.logger.error(`[CLAN] (invite 2.20) Failed to update button interaction: ${error}`),
+					this.container.logger.error(
+						`${LogPrefix.CLAN} (invite 2.20) Failed to update button interaction: ${error}`,
+					),
 				);
 
 			return;
@@ -85,7 +90,7 @@ export class ClanInvite extends InteractionHandler {
 				})
 				.catch((error) =>
 					this.container.logger.error(
-						`[CLAN ${clanOwner.id}] (invite 2.30) Failed to update button interaction: ${error}`,
+						`${LogPrefix.CLAN} [${clanOwner.id}] (invite 2.30) Failed to update button interaction: ${error}`,
 					),
 				);
 
@@ -99,7 +104,7 @@ export class ClanInvite extends InteractionHandler {
 			})
 			.catch((error) =>
 				this.container.logger.error(
-					`[CLAN ${clanOwner.id}] (invite 2.40) Failed to update button interaction: ${error}`,
+					`${LogPrefix.CLAN} [${clanOwner.id}] (invite 2.40) Failed to update button interaction: ${error}`,
 				),
 			);
 
@@ -109,7 +114,7 @@ export class ClanInvite extends InteractionHandler {
 			)
 			.catch((error) =>
 				this.container.logger.error(
-					`[CLAN ${clanOwner.id}] (invite 2.50) Failed to update button interaction: ${error}`,
+					`${LogPrefix.CLAN} [${clanOwner.id}] (invite 2.50) Failed to update button interaction: ${error}`,
 				),
 			);
 	}

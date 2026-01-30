@@ -4,6 +4,7 @@ import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcom
 import { chunk } from '@sapphire/utilities';
 import { MessageFlags, PermissionFlagsBits, type ApplicationCommandOptionChoiceData } from 'discord.js';
 import { createInfoEmbed } from '../../../lib/utils/createEmbed.js';
+import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 import { trimPretty } from '../../../lib/utils/trim.js';
 
 export class VisibleRankRoleSetup extends Subcommand {
@@ -116,7 +117,7 @@ export class VisibleRankRoleSetup extends Subcommand {
 				],
 			});
 		} catch (error: any) {
-			this.container.logger.error(`[VISIBLE RANK ROLE SETUP ADD]`, error);
+			this.container.logger.error(`${LogPrefix.VISIBLE_RANK_ROLE}`, error);
 			await interaction.followUp({
 				embeds: [
 					createInfoEmbed(

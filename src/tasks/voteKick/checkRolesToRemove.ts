@@ -1,5 +1,6 @@
 import process from 'node:process';
 import { Task } from '../../lib/schedule/tasks/Task.js';
+import { LogPrefix } from '../../lib/utils/logPrefix.js';
 
 export class CheckPendingKickResets extends Task {
 	public async run() {
@@ -15,7 +16,7 @@ export class CheckPendingKickResets extends Task {
 		).map((it) => it.id);
 
 		if (!results.length) {
-			this.container.logger.info('[ROLE REMOVAL] No users had their timeout role removed');
+			this.container.logger.info(`${LogPrefix.ROLE_REMOVAL} No users had their timeout role removed`);
 			return null;
 		}
 
@@ -34,7 +35,7 @@ export class CheckPendingKickResets extends Task {
 
 			// If the member isn't present (kicked, banned, left, voodoo magic happened), skip them
 			if (!member) {
-				this.container.logger.debug(`User ${id} can't be found anymore, skipping`);
+				this.container.logger.debug(`${LogPrefix.ROLE_REMOVAL} User ${id} can't be found anymore, skipping`);
 				continue;
 			}
 
@@ -45,8 +46,8 @@ export class CheckPendingKickResets extends Task {
 			);
 		}
 
-		this.container.logger.info(`${results.length} users had their timeout role removed`);
-		this.container.logger.info(JSON.stringify(results));
+		this.container.logger.info(`${LogPrefix.ROLE_REMOVAL} ${results.length} users had their timeout role removed`);
+		this.container.logger.info(`${LogPrefix.ROLE_REMOVAL}`, JSON.stringify(results));
 
 		return null;
 	}

@@ -2,8 +2,9 @@ import { RoleSyncType } from '@prisma/client';
 import { ApplyOptions } from '@sapphire/decorators';
 import { Events, Listener, Result } from '@sapphire/framework';
 import type { GuildMember } from 'discord.js';
+import { LogPrefix } from '../../lib/utils/logPrefix.js';
 
-const header = '[ROLE SYNC] ';
+const header = LogPrefix.ROLE_SYNC;
 
 @ApplyOptions<Listener.Options>({ event: Events.GuildMemberUpdate, name: 'SyncRole' })
 export class SyncRole extends Listener {

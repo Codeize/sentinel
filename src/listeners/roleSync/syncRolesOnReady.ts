@@ -3,8 +3,9 @@ import { ApplyOptions } from '@sapphire/decorators';
 import { Listener } from '@sapphire/framework';
 import type { Guild } from 'discord.js';
 import { Collection } from 'discord.js';
+import { LogPrefix } from '../../lib/utils/logPrefix.js';
 
-const header = '[ROLE SYNC] ';
+const header = LogPrefix.ROLE_SYNC;
 
 @ApplyOptions<Listener.Options>({ event: 'membersCached' })
 export class SyncRolesOnReady extends Listener {

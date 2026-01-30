@@ -3,6 +3,7 @@ import { Events, Listener } from '@sapphire/framework';
 import * as Sentry from '@sentry/node';
 import type { GuildMember } from 'discord.js';
 import { ClanManager } from '../../../lib/abilities/ClanManager.js';
+import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 import { ensureFullMember } from '../../../lib/utils.js';
 
 @ApplyOptions<Listener.Options>({ event: Events.GuildMemberAdd })
@@ -27,7 +28,7 @@ export class GuildMemberComesBack extends Listener<typeof Events.GuildMemberAdd>
 			data: { ...tags, memberTag: member.user.tag, deletionTaskId: clan.deletionTaskId },
 		});
 
-		this.container.logger.info(`[PREMIUM] ${member.user.tag} has come back to the server`, {
+		this.container.logger.info(`${LogPrefix.PREMIUM} ${member.user.tag} has come back to the server`, {
 			userId: member.id,
 			guildId: member.guild.id,
 		});

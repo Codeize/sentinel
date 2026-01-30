@@ -1,4 +1,5 @@
 import { container } from '@sapphire/framework';
+import { LogPrefix } from '../logPrefix.js';
 
 export const cache = new Map<string, true>();
 
@@ -9,7 +10,7 @@ export async function loadMediaOnlyChannels() {
 		cache.set(channel.channel_id, true);
 	}
 
-	container.logger.info(`[MEDIA ONLY] Loaded ${channels.length} media-only channels in cache`);
+	container.logger.info(`${LogPrefix.MEDIA_ONLY} Loaded ${channels.length} media-only channels in cache`);
 }
 
 export function isMediaOnlyChannel(channelId: string) {

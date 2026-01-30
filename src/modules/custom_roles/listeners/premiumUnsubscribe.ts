@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/node';
 import type { GuildMember } from 'discord.js';
 import { ClanManager } from '../../../lib/abilities/ClanManager.js';
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
+import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 import { ensureFullMember } from '../../../lib/utils.js';
 
 @ApplyOptions<Listener.Options>({ event: Events.GuildMemberUpdate })
@@ -32,7 +33,7 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 			data: { ...tags, memberTag: newMember.user.tag },
 		});
 
-		this.container.logger.info(`[PREMIUM] ${newMember.user.tag} has lost some premium abilities`, {
+		this.container.logger.info(`${LogPrefix.PREMIUM} ${newMember.user.tag} has lost some premium abilities`, {
 			userId: newMember.id,
 			guildId: newMember.guild.id,
 		});

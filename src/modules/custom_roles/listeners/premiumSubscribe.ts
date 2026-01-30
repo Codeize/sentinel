@@ -3,6 +3,7 @@ import { Events, Listener } from '@sapphire/framework';
 import type { GuildMember } from 'discord.js';
 import { ClanManager } from '../../../lib/abilities/ClanManager.js';
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
+import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 import { ensureFullMember } from '../../../lib/utils.js';
 
 @ApplyOptions<Listener.Options>({ event: Events.GuildMemberUpdate })
@@ -21,7 +22,7 @@ export class PremiumSubscribe extends Listener<typeof Events.GuildMemberUpdate> 
 			return;
 		}
 
-		this.container.logger.info(`[PREMIUM] ${newMember.user.tag} has gained some premium abilities`, {
+		this.container.logger.info(`${LogPrefix.PREMIUM} ${newMember.user.tag} has gained some premium abilities`, {
 			userId: newMember.id,
 			guildId: newMember.guild.id,
 		});

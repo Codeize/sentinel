@@ -12,6 +12,7 @@ import { ClanDeletionStatus, ClanManager } from '../../../lib/abilities/ClanMana
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
 import { RoleAbilitiesCalculator } from '../../../lib/abilities/RoleAbilities.js';
 import { createErrorEmbed, createInfoEmbed } from '../../../lib/utils/createEmbed.js';
+import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 import { waitForButtonConfirm } from '../../../lib/utils/waitForInteraction.js';
 import { ensureFullMember } from '../../../lib/utils.js';
 
@@ -464,7 +465,7 @@ export class CustomRoleCommand extends Subcommand {
 				const errorMessage = `Your custom role could not be deleted because your clan could not be deleted: ${ClanManager.getDeletionStatusMessage(clanDeletionStatus)}`;
 
 				this.container.logger.error(
-					`[CUSTOM ROLE] ${interaction.member.user.username} failed to delete: ${errorMessage}`,
+					`${LogPrefix.CUSTOM_ROLE} ${interaction.member.user.username} failed to delete: ${errorMessage}`,
 				);
 				await newInteraction.editReply({
 					content: '',
@@ -480,7 +481,7 @@ export class CustomRoleCommand extends Subcommand {
 			await interaction.guild.roles.delete(oldRole);
 		} catch (error) {
 			this.container.logger.error(
-				`[CUSTOM ROLE] ${interaction.member.user.username} failed to delete: could not delete Discord role.`,
+				`${LogPrefix.CUSTOM_ROLE} ${interaction.member.user.username} failed to delete: could not delete Discord role.`,
 				{
 					userId: interaction.user.id,
 					guildId: interaction.guildId,
@@ -521,7 +522,7 @@ export class CustomRoleCommand extends Subcommand {
 			});
 		} catch (error) {
 			this.container.logger.error(
-				`[CUSTOM ROLE] ${interaction.member.user.username} failed to delete from the database.`,
+				`${LogPrefix.CUSTOM_ROLE} ${interaction.member.user.username} failed to delete from the database.`,
 				{
 					userId: interaction.user.id,
 					guildId: interaction.guildId,
@@ -612,7 +613,7 @@ export class CustomRoleCommand extends Subcommand {
 			return null;
 		}
 
-		this.container.logger.info(`[PREMIUM] Trying to resolve icon for premium custom role`, { url });
+		this.container.logger.info(`${LogPrefix.PREMIUM} Trying to resolve icon for premium custom role`, { url });
 
 		let res: Response;
 
@@ -647,7 +648,7 @@ export class CustomRoleCommand extends Subcommand {
 			return uint8;
 		}
 
-		this.container.logger.info(`[PREMIUM] Invalid icon format for premium custom role`, { url, exts });
+		this.container.logger.info(`${LogPrefix.PREMIUM} Invalid icon format for premium custom role`, { url, exts });
 
 		return null;
 	}
