@@ -357,7 +357,7 @@ throw new Error('Unexpected database error');
 -   **Discord rate limits**: Use built-in discord.js rate limit handling
 -   **Scheduled tasks**: Tasks run in-process, long-running tasks should be async
 -   **Caching**: Be aware of Discord cache limitations, refetch data when needed
--   **Git commits**: Do NOT add Co-Authored-By lines to commits
+-   **Git commits**: Do NOT add Co-Authored-By lines to commits. Do NOT commit without explicit approval each time - approval is one-time only, not blanket permission for future commits
 -   **"Take note"**: When told to "take note", add it to this file (CLAUDE.md), don't just acknowledge
 -   **Pre-existing errors**: When running lint/format and encountering pre-existing errors in files not modified by the current task, fix them too
 
