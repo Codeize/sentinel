@@ -2,7 +2,7 @@ import type { Clan, ClanMember, PremiumMember } from '@prisma/client';
 import { container, type ILogger } from '@sapphire/framework';
 import { Duration } from '@sapphire/time-utilities';
 import * as Sentry from '@sentry/node';
-import { ChannelType } from 'discord-api-types/v10';
+import { ChannelType, OverwriteType } from 'discord-api-types/v10';
 import type { CategoryChannel, Guild, GuildMember, NonThreadGuildBasedChannel, Role, TextChannel } from 'discord.js';
 import { Collection } from 'discord.js';
 import { LogPrefix } from '../utils/logPrefix.js';
@@ -1402,6 +1402,7 @@ export class ClanManager {
 		}
 
 		let targetId: string;
+		let overwriteType: OverwriteType;
 		if (target === ClanPermissionEditTarget.Owner) {
 			let ownerId = this.getClanOwnerId();
 			if (!ownerId) {
@@ -1415,12 +1416,14 @@ export class ClanManager {
 			}
 
 			targetId = ownerId;
+			overwriteType = OverwriteType.Member;
 		} else {
 			targetId = this.guild.roles.everyone.id;
+			overwriteType = OverwriteType.Role;
 		}
 
 		try {
-			await channel.permissionOverwrites.edit(targetId, { [permission]: action });
+			await channel.permissionOverwrites.edit(targetId, { [permission]: action }, { type: overwriteType });
 			this.addBreadcrumb('editChannelPermission completed', { targetId, permission, action });
 			return { status: ClanPermissionEditStatus.Success };
 		} catch (error) {
