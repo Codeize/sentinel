@@ -50,6 +50,18 @@ export enum ClanMemberRemoveStatus {
 	NotInClan = 2,
 }
 
+export enum ClanPermissionEditTarget {
+	Everyone = 'everyone',
+	Owner = 'owner'
+}
+
+export enum ClanPermissionEditStatus {
+	Success = 0,
+	NoChannel = 1,
+	NoOwner = 2,
+	Error = 3,
+}
+
 type CacheType = 'clan' | 'clanChannel' | 'clanMembers' | 'customRole' | 'premiumMember';
 
 export class ClanManager {
@@ -1370,9 +1382,52 @@ export class ClanManager {
 			ViewChannel: true,
 			ManageChannels: true,
 			ManageMessages: true,
+			PinMessages: true,
 			CreatePrivateThreads: true,
 			MentionEveryone: true,
 		});
+	}
+
+	public async editChannelPermission(
+		target: ClanPermissionEditTarget,
+		permission: string,
+		action: boolean | null,
+	): Promise<ClanPermissionEditStatus> {
+		this.addBreadcrumb('Starting editChannelPermission', { target, permission, action });
+
+		const channel = await this.getClanChannel();
+		if (!channel) {
+			this.addBreadcrumb('editChannelPermission: no channel', undefined, 'warning');
+			return ClanPermissionEditStatus.NoChannel;
+		}
+
+		let targetId: string;
+		if (target === ClanPermissionEditTarget.Owner) {
+			let ownerId = this.getClanOwnerId();
+			if (!ownerId) {
+				await this.getPremiumMember();
+				ownerId = this.getClanOwnerId();
+			}
+
+			if (!ownerId) {
+				this.addBreadcrumb('editChannelPermission: no owner', undefined, 'warning');
+				return ClanPermissionEditStatus.NoOwner;
+			}
+
+			targetId = ownerId;
+		} else {
+			targetId = this.guild.roles.everyone.id;
+		}
+
+		try {
+			await channel.permissionOverwrites.edit(targetId, { [permission]: action });
+			this.addBreadcrumb('editChannelPermission completed', { targetId, permission, action });
+			return ClanPermissionEditStatus.Success;
+		} catch (error) {
+			this.addBreadcrumb('editChannelPermission failed', { error: String(error) }, 'error');
+			this.captureError(error as Error, 'editChannelPermission failed');
+			return ClanPermissionEditStatus.Error;
+		}
 	}
 
 	private async getPremiumMember(): Promise<PremiumMember | null> {

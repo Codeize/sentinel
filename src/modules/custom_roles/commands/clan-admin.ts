@@ -19,6 +19,8 @@ import {
 	ClanManager,
 	ClanMemberAddStatus,
 	ClanMemberRemoveStatus,
+	ClanPermissionEditStatus,
+	ClanPermissionEditTarget,
 } from '../../../lib/abilities/ClanManager.js';
 
 const Colors = {
@@ -58,6 +60,11 @@ export class ClanAdminCommand extends Subcommand {
 			type: 'method',
 			name: 'orphan',
 			chatInputRun: 'orphanSubcommand',
+		},
+		{
+			type: 'method',
+			name: 'sync-permission',
+			chatInputRun: 'syncPermissionSubcommand',
 		},
 	];
 
@@ -421,8 +428,163 @@ export class ClanAdminCommand extends Subcommand {
 		]);
 	}
 
+	public async syncPermissionSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+		const permission = interaction.options.getString('permission', true);
+		const actionString = interaction.options.getString('action', true);
+		const targetString = interaction.options.getString('target', true);
+
+		if (!(permission in PermissionFlagsBits)) {
+			await this.replyWithComponents(interaction, [
+				this.errorMessage(`Unknown permission: \`${permission}\`.`),
+			]);
+			return;
+		}
+
+		const action: boolean | null =
+			actionString === 'allow' ? true
+			: actionString === 'deny' ? false
+			: null;
+		const target =
+			targetString === 'everyone' ? ClanPermissionEditTarget.Everyone : ClanPermissionEditTarget.Owner;
+
+		const owners = await this.container.prisma.premiumMember.findMany({
+			where: { guildId: interaction.guildId, customRoleId: { not: null } },
+		});
+
+		if (owners.length === 0) {
+			await this.replyWithComponents(interaction, [this.infoMessage('No clans found in this server.')]);
+			return;
+		}
+
+		const managers: ClanManager[] = [];
+		let missingChannelCount = 0;
+
+		for (const owner of owners) {
+			const manager = new ClanManager(owner.userId, interaction.guildId);
+			const channel = await manager.getClanChannel();
+			if (channel) {
+				managers.push(manager);
+			} else {
+				missingChannelCount++;
+			}
+		}
+
+		if (managers.length === 0) {
+			await this.replyWithComponents(interaction, [
+				this.errorMessage('No clan channels were found to update.'),
+			]);
+			return;
+		}
+
+		const actionLabel = action === true ? '✅ Allow' : action === false ? '❌ Deny' : '🔄 Reset';
+		const targetLabel = target === ClanPermissionEditTarget.Owner ? 'clan owner' : '@everyone';
+
+		const summaryLines = [
+			`**Permission:** \`${permission}\``,
+			`**Action:** ${actionLabel}`,
+			`**Target:** ${targetLabel}`,
+			`**Channels to update:** ${managers.length}`,
+		];
+		if (missingChannelCount > 0) {
+			summaryLines.push(`**Skipped (no channel):** ${missingChannelCount}`);
+		}
+
+		const confirmButton = new ButtonBuilder()
+			.setCustomId('clan-admin-sync-confirm')
+			.setLabel('Apply')
+			.setStyle(ButtonStyle.Primary);
+
+		const cancelButton = new ButtonBuilder()
+			.setCustomId('clan-admin-sync-cancel')
+			.setLabel('Cancel')
+			.setStyle(ButtonStyle.Secondary);
+
+		const container = new ContainerBuilder()
+			.setAccentColor(Colors.Info)
+			.addTextDisplayComponents(new TextDisplayBuilder().setContent('## Sync Clan Permission'))
+			.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+			.addTextDisplayComponents(new TextDisplayBuilder().setContent(summaryLines.join('\n')))
+			.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+			.addActionRowComponents((row) => row.addComponents(confirmButton, cancelButton));
+
+		const response = await this.replyWithComponents(interaction, [container]);
+
+		try {
+			const buttonInteraction = await response.awaitMessageComponent({
+				filter: (bi) => bi.user.id === interaction.user.id,
+				time: 30_000,
+			});
+
+			if (buttonInteraction.customId === 'clan-admin-sync-cancel') {
+				await buttonInteraction.update({
+					components: [this.infoMessage('Sync cancelled.')],
+					flags: MessageFlags.IsComponentsV2,
+				});
+				return;
+			}
+
+			await buttonInteraction.update({
+				components: [this.infoMessage(`Updating ${managers.length} clan channels...`)],
+				flags: MessageFlags.IsComponentsV2,
+			});
+
+			let succeeded = 0;
+			let failed = 0;
+			let noOwner = 0;
+
+			for (const manager of managers) {
+				const status = await manager.editChannelPermission(target, permission, action);
+				if (status === ClanPermissionEditStatus.Success) succeeded++;
+				else if (status === ClanPermissionEditStatus.NoOwner) noOwner++;
+				else failed++;
+			}
+
+			const resultLines = [
+				`**Permission:** \`${permission}\``,
+				`**Action:** ${actionLabel}`,
+				`**Target:** ${targetLabel}`,
+				`**Updated:** ${succeeded}`,
+			];
+			if (failed > 0) resultLines.push(`**Failed:** ${failed}`);
+			if (noOwner > 0) resultLines.push(`**Skipped (no owner):** ${noOwner}`);
+			if (missingChannelCount > 0) resultLines.push(`**Skipped (no channel):** ${missingChannelCount}`);
+
+			const hasIssues = failed > 0 || noOwner > 0 || missingChannelCount > 0;
+
+			await this.replyWithComponents(interaction, [
+				new ContainerBuilder()
+					.setAccentColor(failed > 0 ? Colors.Error : hasIssues ? Colors.Info : Colors.Success)
+					.addTextDisplayComponents(new TextDisplayBuilder().setContent('## Sync Complete'))
+					.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+					.addTextDisplayComponents(new TextDisplayBuilder().setContent(resultLines.join('\n'))),
+			]);
+		} catch {
+			await this.replyWithComponents(interaction, [this.infoMessage('Sync confirmation timed out.')]);
+		}
+	}
+
 	public override async autocompleteRun(interaction: AutocompleteInteraction<'cached'>) {
 		const focusedOption = interaction.options.getFocused(true);
+
+		if (focusedOption.name === 'permission') {
+			const search = focusedOption.value.toLowerCase();
+			const permissionNames = Object.keys(PermissionFlagsBits);
+
+			const filtered = permissionNames
+				.filter((name) => !search || name.toLowerCase().includes(search))
+				.sort((a, b) => {
+					const aStarts = a.toLowerCase().startsWith(search);
+					const bStarts = b.toLowerCase().startsWith(search);
+					if (aStarts && !bStarts) return -1;
+					if (!aStarts && bStarts) return 1;
+					return a.localeCompare(b);
+				})
+				.slice(0, 25);
+
+			return interaction.respond(filtered.map((name) => ({ name, value: name })));
+		}
 
 		if (focusedOption.name !== 'clan') {
 			return interaction.respond([]);
@@ -519,6 +681,39 @@ export class ClanAdminCommand extends Subcommand {
 								.setName('clan')
 								.setDescription('The clan role to mark as orphaned')
 								.setRequired(true),
+						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('sync-permission')
+						.setDescription('Bulk allow/deny/reset a permission across all clan channels')
+						.addStringOption((option) =>
+							option
+								.setName('permission')
+								.setDescription('The permission to modify')
+								.setRequired(true)
+								.setAutocomplete(true),
+						)
+						.addStringOption((option) =>
+							option
+								.setName('action')
+								.setDescription('Allow, deny, or reset (remove the override)')
+								.setRequired(true)
+								.addChoices(
+									{ name: 'Allow', value: 'allow' },
+									{ name: 'Deny', value: 'deny' },
+									{ name: 'Reset', value: 'reset' },
+								),
+						)
+						.addStringOption((option) =>
+							option
+								.setName('target')
+								.setDescription('Whose override to modify')
+								.setRequired(true)
+								.addChoices(
+									{ name: 'Clan owner', value: 'owner' },
+									{ name: '@everyone', value: 'everyone' },
+								),
 						),
 				),
 		);
