@@ -257,6 +257,7 @@ model RoleAbilities {
   canGiftLegend          Boolean @default(false)
   canCreateClan          Boolean @default(false)
   areAbilitiesMultiGuild Boolean @default(false)
+  canUploadCustomEmoji   Boolean @default(false)
 
   @@id([guildId, roleId])
   @@map("role_abilities")
@@ -293,6 +294,17 @@ model ClanMember {
 model ClanEmojiCache {
   roleId    String @id
   iconHash  String
-  
+
   @@map("clan_emoji_cache")
+}
+
+model CustomEmoji {
+  emojiId    String   @id
+  guildId    String
+  userId     String
+  name       String
+  uploadedAt DateTime @default(now())
+
+  @@index([guildId, userId])
+  @@map("custom_emojis")
 }

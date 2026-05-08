@@ -111,6 +111,16 @@ export class ConfigPremiumCommand extends Subcommand {
 			name: 'check-abilities',
 			chatInputRun: 'checkAbilitiesSubcommand',
 		},
+		{
+			type: 'group',
+			name: 'custom-emojis',
+			entries: [
+				{
+					name: 'purge',
+					chatInputRun: 'purgeCustomEmojisSubcommand',
+				},
+			],
+		},
 	];
 
 	public async showConfigSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
@@ -755,6 +765,7 @@ export class ConfigPremiumCommand extends Subcommand {
 												name: 'Use abilities on multiple servers',
 												value: 'areAbilitiesMultiGuild',
 											},
+											{ name: 'Upload custom emojis', value: 'canUploadCustomEmoji' },
 										)
 										.setRequired(true),
 								),
@@ -781,6 +792,7 @@ export class ConfigPremiumCommand extends Subcommand {
 												name: 'Use abilities on multiple servers',
 												value: 'areAbilitiesMultiGuild',
 											},
+											{ name: 'Upload custom emojis', value: 'canUploadCustomEmoji' },
 										)
 										.setRequired(true),
 								),
@@ -888,6 +900,22 @@ export class ConfigPremiumCommand extends Subcommand {
 									{ name: 'Fix all issues', value: 'fix-all' },
 								)
 								.setRequired(false),
+						),
+				)
+				.addSubcommandGroup((group) =>
+					group
+						.setName('custom-emojis')
+						.setDescription("Manage members' custom emoji uploads")
+						.addSubcommand((subcommand) =>
+							subcommand
+								.setName('purge')
+								.setDescription('Delete all custom emojis a member has uploaded in this server')
+								.addUserOption((user) =>
+									user
+										.setName('user')
+										.setDescription('The member whose custom emojis to purge')
+										.setRequired(true),
+								),
 						),
 				),
 		);
@@ -1045,6 +1073,63 @@ export class ConfigPremiumCommand extends Subcommand {
 		await interaction.editReply({
 			embeds: [
 				createInfoEmbed(`**Premium Ability Check (${modeLabels[fixMode]})**\n\n${description.join('\n')}`),
+			],
+		});
+	}
+
+	public async purgeCustomEmojisSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+		const targetUser = interaction.options.getUser('user', true);
+
+		const records = await this.container.prisma.customEmoji.findMany({
+			where: { guildId: interaction.guildId, userId: targetUser.id },
+		});
+
+		if (records.length === 0) {
+			await interaction.editReply({
+				embeds: [createInfoEmbed(`${targetUser.toString()} has no custom emojis uploaded in this server.`)],
+			});
+			return;
+		}
+
+		let deletedFromDiscord = 0;
+		let alreadyGone = 0;
+
+		for (const record of records) {
+			const guildEmoji =
+				interaction.guild.emojis.cache.get(record.emojiId) ??
+				(await interaction.guild.emojis.fetch(record.emojiId).catch(() => null));
+
+			if (!guildEmoji) {
+				alreadyGone++;
+				continue;
+			}
+
+			try {
+				await guildEmoji.delete(`Purged by ${interaction.user.tag} via /config-premium custom-emojis purge`);
+				deletedFromDiscord++;
+			} catch (error) {
+				this.container.logger.warn(`[PREMIUM] Failed to delete custom emoji during purge`, {
+					guildId: interaction.guildId,
+					targetUserId: targetUser.id,
+					emojiId: record.emojiId,
+					error,
+				});
+			}
+		}
+
+		await this.container.prisma.customEmoji.deleteMany({
+			where: { guildId: interaction.guildId, userId: targetUser.id },
+		});
+
+		await interaction.editReply({
+			embeds: [
+				createInfoEmbed(
+					`Purged ${records.length} custom emoji record(s) for ${targetUser.toString()}.\n` +
+						`> Deleted from server: ${deletedFromDiscord}\n` +
+						`> Already missing from server: ${alreadyGone}`,
+				),
 			],
 		});
 	}

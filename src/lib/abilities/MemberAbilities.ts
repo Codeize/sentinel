@@ -15,6 +15,7 @@ export class MemberAbilities {
 		canCreateCustomRole: false,
 		canGiftLegend: false,
 		areAbilitiesMultiGuild: false,
+		canUploadCustomEmoji: false,
 	};
 
 	public constructor(member: GuildMember) {
@@ -45,6 +46,9 @@ export class MemberAbilities {
 		this.abilities.canGiftLegend = this.roleAbilities.getPremiumRoleIds('canGiftLegend').some(hasRole);
 		this.abilities.areAbilitiesMultiGuild = this.roleAbilities
 			.getPremiumRoleIds('areAbilitiesMultiGuild')
+			.some(hasRole);
+		this.abilities.canUploadCustomEmoji = this.roleAbilities
+			.getPremiumRoleIds('canUploadCustomEmoji')
 			.some(hasRole);
 
 		this.abilitiesComputed = true;

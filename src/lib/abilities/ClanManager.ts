@@ -52,7 +52,7 @@ export enum ClanMemberRemoveStatus {
 
 export enum ClanPermissionEditTarget {
 	Everyone = 'everyone',
-	Owner = 'owner'
+	Owner = 'owner',
 }
 
 export enum ClanPermissionEditStatus {
@@ -1428,10 +1428,7 @@ export class ClanManager {
 			this.addBreadcrumb('editChannelPermission completed', { targetId, permission, action });
 			return { status: ClanPermissionEditStatus.Success };
 		} catch (error) {
-			if (
-				error instanceof DiscordAPIError &&
-				error.code === RESTJSONErrorCodes.UnknownPermissionOverwrite
-			) {
+			if (error instanceof DiscordAPIError && error.code === RESTJSONErrorCodes.UnknownPermissionOverwrite) {
 				this.addBreadcrumb('editChannelPermission: owner not in guild', { targetId }, 'warning');
 				return { status: ClanPermissionEditStatus.OwnerNotInGuild };
 			}

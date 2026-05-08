@@ -436,9 +436,7 @@ export class ClanAdminCommand extends Subcommand {
 		const targetString = interaction.options.getString('target', true);
 
 		if (!(permission in PermissionFlagsBits)) {
-			await this.replyWithComponents(interaction, [
-				this.errorMessage(`Unknown permission: \`${permission}\`.`),
-			]);
+			await this.replyWithComponents(interaction, [this.errorMessage(`Unknown permission: \`${permission}\`.`)]);
 			return;
 		}
 
@@ -446,8 +444,7 @@ export class ClanAdminCommand extends Subcommand {
 			actionString === 'allow' ? true
 			: actionString === 'deny' ? false
 			: null;
-		const target =
-			targetString === 'everyone' ? ClanPermissionEditTarget.Everyone : ClanPermissionEditTarget.Owner;
+		const target = targetString === 'everyone' ? ClanPermissionEditTarget.Everyone : ClanPermissionEditTarget.Owner;
 
 		const owners = await this.container.prisma.premiumMember.findMany({
 			where: { guildId: interaction.guildId, customRoleId: { not: null } },
@@ -472,13 +469,14 @@ export class ClanAdminCommand extends Subcommand {
 		}
 
 		if (managers.length === 0) {
-			await this.replyWithComponents(interaction, [
-				this.errorMessage('No clan channels were found to update.'),
-			]);
+			await this.replyWithComponents(interaction, [this.errorMessage('No clan channels were found to update.')]);
 			return;
 		}
 
-		const actionLabel = action === true ? '✅ Allow' : action === false ? '❌ Deny' : '🔄 Reset';
+		const actionLabel =
+			action === true ? '✅ Allow'
+			: action === false ? '❌ Deny'
+			: '🔄 Reset';
 		const targetLabel = target === ClanPermissionEditTarget.Owner ? 'clan owner' : '@everyone';
 
 		const summaryLines = [
@@ -569,7 +567,11 @@ export class ClanAdminCommand extends Subcommand {
 
 			await this.replyWithComponents(interaction, [
 				new ContainerBuilder()
-					.setAccentColor(failed > 0 ? Colors.Error : hasIssues ? Colors.Info : Colors.Success)
+					.setAccentColor(
+						failed > 0 ? Colors.Error
+						: hasIssues ? Colors.Info
+						: Colors.Success,
+					)
 					.addTextDisplayComponents(new TextDisplayBuilder().setContent('## Sync Complete'))
 					.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
 					.addTextDisplayComponents(new TextDisplayBuilder().setContent(resultLines.join('\n'))),

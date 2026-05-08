@@ -10,6 +10,7 @@ export class RoleAbilitiesCalculator {
 		canCreateCustomRole: [],
 		canGiftLegend: [],
 		areAbilitiesMultiGuild: [],
+		canUploadCustomEmoji: [],
 	};
 
 	public constructor(guildId: string) {
@@ -32,6 +33,9 @@ export class RoleAbilitiesCalculator {
 			canCreateClan: allPremiumRoles.filter((role) => role.canCreateClan).map((result) => result.roleId),
 			areAbilitiesMultiGuild: allPremiumRoles
 				.filter((role) => role.areAbilitiesMultiGuild)
+				.map((result) => result.roleId),
+			canUploadCustomEmoji: allPremiumRoles
+				.filter((role) => role.canUploadCustomEmoji)
 				.map((result) => result.roleId),
 		};
 	}
@@ -56,11 +60,17 @@ export class RoleAbilitiesCalculator {
 			canCreateCustomRole: this.premiumRoleIds.canCreateCustomRole.includes(roleId),
 			canGiftLegend: this.premiumRoleIds.canGiftLegend.includes(roleId),
 			areAbilitiesMultiGuild: this.premiumRoleIds.areAbilitiesMultiGuild.includes(roleId),
+			canUploadCustomEmoji: this.premiumRoleIds.canUploadCustomEmoji.includes(roleId),
 		};
 	}
 }
 
-export type RoleAbility = 'areAbilitiesMultiGuild' | 'canCreateClan' | 'canCreateCustomRole' | 'canGiftLegend';
+export type RoleAbility =
+	| 'areAbilitiesMultiGuild'
+	| 'canCreateClan'
+	| 'canCreateCustomRole'
+	| 'canGiftLegend'
+	| 'canUploadCustomEmoji';
 export type RoleAbilities = Record<RoleAbility, boolean>;
 
 export const RoleAbilityMap: Record<RoleAbility, string> = {
@@ -68,4 +78,5 @@ export const RoleAbilityMap: Record<RoleAbility, string> = {
 	canCreateCustomRole: 'Can create custom role',
 	canGiftLegend: 'Can gift legend',
 	areAbilitiesMultiGuild: 'Can use abilities on multiple servers',
+	canUploadCustomEmoji: 'Can upload custom emojis',
 };
