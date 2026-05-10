@@ -2,6 +2,11 @@ import { ApplyOptions } from '@sapphire/decorators';
 import { Command } from '@sapphire/framework';
 import {
 	ActionRowBuilder,
+	type EmbedBuilder,
+	ButtonBuilder,
+	ButtonStyle,
+	type Guild,
+	type GuildMember,
 	InteractionContextType,
 	MessageFlags,
 	type Role,
@@ -13,9 +18,108 @@ import { RoleAbilitiesCalculator } from '../../../lib/abilities/RoleAbilities.js
 import { createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 import { ensureFullMember } from '../../../lib/utils.js';
 
-export const PICK_ROLE_SELECT_CUSTOM_ID = 'pick-role-select';
+export const PICK_ROLE_PAGE_SIZE = 25;
+export const PICK_ROLE_SELECT_PREFIX = 'pick-role-select';
+export const PICK_ROLE_PAGE_PREFIX = 'pick-role-page';
 
-const DISCORD_SELECT_MENU_MAX_OPTIONS = 25;
+export function makePickRoleSelectId(page: number): string {
+	return `${PICK_ROLE_SELECT_PREFIX}:${page}`;
+}
+
+export function makePickRolePageId(page: number): string {
+	return `${PICK_ROLE_PAGE_PREFIX}:${page}`;
+}
+
+export function parsePickRoleCustomId(customId: string, prefix: string): number | null {
+	if (!customId.startsWith(`${prefix}:`)) {
+		return null;
+	}
+
+	const page = Number.parseInt(customId.slice(prefix.length + 1), 10);
+	return Number.isNaN(page) ? null : page;
+}
+
+export function resolvePickableRoles(guild: Guild, pickableRoleIds: readonly string[]): Role[] {
+	return pickableRoleIds.map((id) => guild.roles.resolve(id)).filter((role): role is Role => role !== null);
+}
+
+interface BuildPagePayloadOptions {
+	guild: Guild;
+	member: GuildMember;
+	notice?: string;
+	page: number;
+	pickableRoleIds: readonly string[];
+}
+
+type PickRoleRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
+
+export function buildPickRolePagePayload(options: BuildPagePayloadOptions): {
+	components: PickRoleRow[];
+	embeds: EmbedBuilder[];
+} {
+	const { guild, member, pickableRoleIds, notice } = options;
+	const resolvedRoles = resolvePickableRoles(guild, pickableRoleIds);
+
+	const totalPages = Math.max(1, Math.ceil(resolvedRoles.length / PICK_ROLE_PAGE_SIZE));
+	const page = Math.max(0, Math.min(options.page, totalPages - 1));
+	const start = page * PICK_ROLE_PAGE_SIZE;
+	const pageRoles = resolvedRoles.slice(start, start + PICK_ROLE_PAGE_SIZE);
+
+	const lines = pageRoles.map((role) => {
+		const has = member.roles.cache.has(role.id);
+		const icon = role.unicodeEmoji ? `${role.unicodeEmoji} ` : '';
+		return `${has ? '✓' : '○'} ${icon}${role.toString()}`;
+	});
+
+	const headingParts: string[] = [];
+	if (notice) {
+		headingParts.push(notice, '');
+	}
+
+	headingParts.push(
+		totalPages > 1 ?
+			`**Page ${page + 1} of ${totalPages}** — Pick the perk roles you want.`
+		:	'Pick the perk roles you want.',
+	);
+	headingParts.push('', lines.join('\n'));
+
+	const embed = createInfoEmbed(headingParts.join('\n'));
+
+	const menuOptions = pageRoles.map((role) =>
+		new StringSelectMenuOptionBuilder()
+			.setLabel(role.name)
+			.setValue(role.id)
+			.setDefault(member.roles.cache.has(role.id)),
+	);
+
+	const menu = new StringSelectMenuBuilder()
+		.setCustomId(makePickRoleSelectId(page))
+		.setPlaceholder('Pick the perk roles you want')
+		.setMinValues(0)
+		.setMaxValues(menuOptions.length)
+		.addOptions(menuOptions);
+
+	const components: PickRoleRow[] = [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)];
+
+	if (totalPages > 1) {
+		const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+			new ButtonBuilder()
+				.setCustomId(makePickRolePageId(page - 1))
+				.setStyle(ButtonStyle.Secondary)
+				.setLabel('◀ Previous')
+				.setDisabled(page === 0),
+			new ButtonBuilder()
+				.setCustomId(makePickRolePageId(page + 1))
+				.setStyle(ButtonStyle.Secondary)
+				.setLabel('Next ▶')
+				.setDisabled(page === totalPages - 1),
+		);
+
+		components.push(navRow);
+	}
+
+	return { embeds: [embed], components };
+}
 
 @ApplyOptions<Command.Options>({
 	description: "Pick from the list of subscriber-only roles you're eligible for",
@@ -58,9 +162,8 @@ export class PickRoleCommand extends Command {
 			return;
 		}
 
-		const resolvedRoles: Role[] = pickableRoleIds
-			.map((id) => interaction.guild.roles.resolve(id))
-			.filter((role): role is Role => role !== null);
+		const member = await ensureFullMember(interaction.member);
+		const resolvedRoles = resolvePickableRoles(interaction.guild, pickableRoleIds);
 
 		if (resolvedRoles.length === 0) {
 			await interaction.reply({
@@ -72,31 +175,15 @@ export class PickRoleCommand extends Command {
 			return;
 		}
 
-		const member = await ensureFullMember(interaction.member);
-		const visibleRoles = resolvedRoles.slice(0, DISCORD_SELECT_MENU_MAX_OPTIONS);
-
-		const options = visibleRoles.map((role) =>
-			new StringSelectMenuOptionBuilder()
-				.setLabel(role.name)
-				.setValue(role.id)
-				.setDefault(member.roles.cache.has(role.id)),
-		);
-
-		const menu = new StringSelectMenuBuilder()
-			.setCustomId(PICK_ROLE_SELECT_CUSTOM_ID)
-			.setPlaceholder('Pick the perk roles you want')
-			.setMinValues(0)
-			.setMaxValues(visibleRoles.length)
-			.addOptions(options);
-
-		const description =
-			resolvedRoles.length > DISCORD_SELECT_MENU_MAX_OPTIONS ?
-				`Pick the perk roles you want. (Showing the first ${DISCORD_SELECT_MENU_MAX_OPTIONS} of ${resolvedRoles.length} configured — ask staff to trim the list.)`
-			:	'Pick the perk roles you want.';
+		const payload = buildPickRolePagePayload({
+			guild: interaction.guild,
+			member,
+			pickableRoleIds,
+			page: 0,
+		});
 
 		await interaction.reply({
-			embeds: [createInfoEmbed(description)],
-			components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],
+			...payload,
 			flags: MessageFlags.Ephemeral,
 		});
 	}
