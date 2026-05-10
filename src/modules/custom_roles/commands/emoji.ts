@@ -14,7 +14,7 @@ import { RoleAbilitiesCalculator } from '../../../lib/abilities/RoleAbilities.js
 import { createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 
-export const CUSTOM_EMOJI_LIMIT_PER_USER = 5;
+export const CUSTOM_EMOJI_LIMIT_PER_USER = 1;
 
 const EMOJI_NAME_REGEX = /^\w{2,32}$/;
 const EMOJI_MAX_BYTES = 256 * 1_024;
@@ -229,12 +229,14 @@ export class EmojiCommand extends Subcommand {
 			return;
 		}
 
-		const lines = await Promise.all(records.map(async (record: CustomEmoji) => {
-			const guildEmoji = await interaction.guild.emojis.fetch(record.emojiId);
-			const display = guildEmoji?.toString() ?? '❔';
+		const lines = await Promise.all(
+			records.map(async (record: CustomEmoji) => {
+				const guildEmoji = await interaction.guild.emojis.fetch(record.emojiId);
+				const display = guildEmoji?.toString() ?? '❔';
 
-			return `${display} \`:${record.name}:\``;
-		}));
+				return `${display} \`:${record.name}:\``;
+			}),
+		);
 
 		const heading =
 			isSelf ?
