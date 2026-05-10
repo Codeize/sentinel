@@ -121,6 +121,24 @@ export class ConfigPremiumCommand extends Subcommand {
 				},
 			],
 		},
+		{
+			type: 'group',
+			name: 'subscriber-roles',
+			entries: [
+				{
+					name: 'add',
+					chatInputRun: 'addSubscriberRoleSubcommand',
+				},
+				{
+					name: 'remove',
+					chatInputRun: 'removeSubscriberRoleSubcommand',
+				},
+				{
+					name: 'list',
+					chatInputRun: 'listSubscriberRolesSubcommand',
+				},
+			],
+		},
 	];
 
 	public async showConfigSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
@@ -766,6 +784,7 @@ export class ConfigPremiumCommand extends Subcommand {
 												value: 'areAbilitiesMultiGuild',
 											},
 											{ name: 'Upload custom emojis', value: 'canUploadCustomEmoji' },
+											{ name: 'Pick subscriber roles', value: 'canPickSubscriberRole' },
 										)
 										.setRequired(true),
 								),
@@ -793,6 +812,7 @@ export class ConfigPremiumCommand extends Subcommand {
 												value: 'areAbilitiesMultiGuild',
 											},
 											{ name: 'Upload custom emojis', value: 'canUploadCustomEmoji' },
+											{ name: 'Pick subscriber roles', value: 'canPickSubscriberRole' },
 										)
 										.setRequired(true),
 								),
@@ -916,6 +936,30 @@ export class ConfigPremiumCommand extends Subcommand {
 										.setDescription('The member whose custom emojis to purge')
 										.setRequired(true),
 								),
+						),
+				)
+				.addSubcommandGroup((group) =>
+					group
+						.setName('subscriber-roles')
+						.setDescription('Manage the list of roles subscribers can pick via /pick-role')
+						.addSubcommand((subcommand) =>
+							subcommand
+								.setName('add')
+								.setDescription('Add a role to the pickable list')
+								.addRoleOption((role) =>
+									role.setName('role').setDescription('The role to add').setRequired(true),
+								),
+						)
+						.addSubcommand((subcommand) =>
+							subcommand
+								.setName('remove')
+								.setDescription('Remove a role from the pickable list')
+								.addRoleOption((role) =>
+									role.setName('role').setDescription('The role to remove').setRequired(true),
+								),
+						)
+						.addSubcommand((subcommand) =>
+							subcommand.setName('list').setDescription('Show the current pickable role list'),
 						),
 				),
 		);
@@ -1049,6 +1093,10 @@ export class ConfigPremiumCommand extends Subcommand {
 			description.push(`🏚️ Orphaned clans: ${result.totalOrphanedClansWithoutTask}`);
 		}
 
+		if (result.totalStrayPickUsers > 0) {
+			description.push(`🎟️ Stray subscriber picks: ${result.totalStrayPickUsers} user(s)`);
+		}
+
 		if (fixMode === 'dry-run') {
 			description.push('');
 			description.push(
@@ -1060,13 +1108,17 @@ export class ConfigPremiumCommand extends Subcommand {
 				description.push(`🔧 Orphaned clans scheduled for deletion: ${result.orphanedClansFixed}`);
 			}
 
+			if (result.strayPickUsersFixed > 0) {
+				description.push(`🔧 Stray subscriber picks stripped from: ${result.strayPickUsersFixed} user(s)`);
+			}
+
 			description.push('');
 			const fixedWhat =
 				fixMode === 'fix-all' ? 'all issues'
 				: fixMode === 'fix-missing' ? 'missing members'
 				: 'mismatches';
 			description.push(
-				`*Removed ${result.fixed} premium member entries and scheduled ${result.orphanedClansFixed} orphaned clans for deletion (${fixedWhat}).*`,
+				`*Removed ${result.fixed} premium member entries, scheduled ${result.orphanedClansFixed} orphaned clans for deletion, and stripped picks from ${result.strayPickUsersFixed} user(s) (${fixedWhat}).*`,
 			);
 		}
 
@@ -1131,6 +1183,85 @@ export class ConfigPremiumCommand extends Subcommand {
 						`> Already missing from server: ${alreadyGone}`,
 				),
 			],
+		});
+	}
+
+	public async addSubscriberRoleSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const role = interaction.options.getRole('role', true);
+
+		const guildConfig = await this.container.prisma.premiumGuildRoleConfig.findFirst({
+			where: { guildId: interaction.guildId },
+		});
+
+		if (guildConfig?.pickableRoleIds.includes(role.id)) {
+			await interaction.reply({
+				embeds: [createInfoEmbed(`${role.toString()} is already in the pickable list.`)],
+				flags: MessageFlags.Ephemeral,
+			});
+			return;
+		}
+
+		await this.container.prisma.premiumGuildRoleConfig.upsert({
+			where: { guildId: interaction.guildId },
+			create: { guildId: interaction.guildId, pickableRoleIds: [role.id] },
+			update: { pickableRoleIds: { push: role.id } },
+		});
+
+		await interaction.reply({
+			embeds: [createInfoEmbed(`Added ${role.toString()} to the pickable role list.`)],
+			flags: MessageFlags.Ephemeral,
+		});
+	}
+
+	public async removeSubscriberRoleSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const role = interaction.options.getRole('role', true);
+
+		const guildConfig = await this.container.prisma.premiumGuildRoleConfig.findFirst({
+			where: { guildId: interaction.guildId },
+		});
+
+		if (!guildConfig?.pickableRoleIds.includes(role.id)) {
+			await interaction.reply({
+				embeds: [createInfoEmbed(`${role.toString()} is not in the pickable list.`)],
+				flags: MessageFlags.Ephemeral,
+			});
+			return;
+		}
+
+		await this.container.prisma.premiumGuildRoleConfig.update({
+			where: { guildId: interaction.guildId },
+			data: { pickableRoleIds: { set: guildConfig.pickableRoleIds.filter((id) => id !== role.id) } },
+		});
+
+		await interaction.reply({
+			embeds: [createInfoEmbed(`Removed ${role.toString()} from the pickable role list.`)],
+			flags: MessageFlags.Ephemeral,
+		});
+	}
+
+	public async listSubscriberRolesSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const guildConfig = await this.container.prisma.premiumGuildRoleConfig.findFirst({
+			where: { guildId: interaction.guildId },
+		});
+
+		const pickableRoleIds = guildConfig?.pickableRoleIds ?? [];
+
+		if (pickableRoleIds.length === 0) {
+			await interaction.reply({
+				embeds: [createInfoEmbed('There are no pickable roles configured in this server.')],
+				flags: MessageFlags.Ephemeral,
+			});
+			return;
+		}
+
+		const lines = pickableRoleIds.map((id) => {
+			const role = interaction.guild.roles.resolve(id);
+			return role ? `- ${role.toString()}` : `- *(deleted role: ${id})*`;
+		});
+
+		await interaction.reply({
+			embeds: [createInfoEmbed(`**Pickable Subscriber Roles:**\n${lines.join('\n')}`)],
+			flags: MessageFlags.Ephemeral,
 		});
 	}
 }

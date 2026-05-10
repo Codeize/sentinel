@@ -11,6 +11,7 @@ export class RoleAbilitiesCalculator {
 		canGiftLegend: [],
 		areAbilitiesMultiGuild: [],
 		canUploadCustomEmoji: [],
+		canPickSubscriberRole: [],
 	};
 
 	public constructor(guildId: string) {
@@ -37,6 +38,9 @@ export class RoleAbilitiesCalculator {
 			canUploadCustomEmoji: allPremiumRoles
 				.filter((role) => role.canUploadCustomEmoji)
 				.map((result) => result.roleId),
+			canPickSubscriberRole: allPremiumRoles
+				.filter((role) => role.canPickSubscriberRole)
+				.map((result) => result.roleId),
 		};
 	}
 
@@ -61,6 +65,7 @@ export class RoleAbilitiesCalculator {
 			canGiftLegend: this.premiumRoleIds.canGiftLegend.includes(roleId),
 			areAbilitiesMultiGuild: this.premiumRoleIds.areAbilitiesMultiGuild.includes(roleId),
 			canUploadCustomEmoji: this.premiumRoleIds.canUploadCustomEmoji.includes(roleId),
+			canPickSubscriberRole: this.premiumRoleIds.canPickSubscriberRole.includes(roleId),
 		};
 	}
 }
@@ -70,6 +75,7 @@ export type RoleAbility =
 	| 'canCreateClan'
 	| 'canCreateCustomRole'
 	| 'canGiftLegend'
+	| 'canPickSubscriberRole'
 	| 'canUploadCustomEmoji';
 export type RoleAbilities = Record<RoleAbility, boolean>;
 
@@ -79,4 +85,5 @@ export const RoleAbilityMap: Record<RoleAbility, string> = {
 	canGiftLegend: 'Can gift legend',
 	areAbilitiesMultiGuild: 'Can use abilities on multiple servers',
 	canUploadCustomEmoji: 'Can upload custom emojis',
+	canPickSubscriberRole: 'Can pick subscriber roles',
 };

@@ -10,7 +10,20 @@ export class PremiumRoleDeleteListener extends Listener<typeof Events.GuildRoleD
 
 		await roleAbilitiesCalculator.computeList();
 
-		if (!roleAbilitiesCalculator.getAllPremiumRoleIds().includes(role.id)) {
+		const isPremiumAbilityRole = roleAbilitiesCalculator.getAllPremiumRoleIds().includes(role.id);
+
+		const pickableConfig = await this.container.prisma.premiumGuildRoleConfig.findFirst({
+			where: { guildId: role.guild.id, pickableRoleIds: { hasSome: [role.id] } },
+		});
+
+		if (pickableConfig) {
+			await this.container.prisma.premiumGuildRoleConfig.update({
+				where: { guildId: role.guild.id },
+				data: { pickableRoleIds: { set: pickableConfig.pickableRoleIds.filter((id) => id !== role.id) } },
+			});
+		}
+
+		if (!isPremiumAbilityRole) {
 			return;
 		}
 

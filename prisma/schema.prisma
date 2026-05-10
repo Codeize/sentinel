@@ -221,6 +221,9 @@ model PremiumGuildRoleConfig {
   /// The roles whose colors should be checked for custom premium roles so that the color is not too similar
   staffRoles String[]
 
+  /// Roles that subscribers with the canPickSubscriberRole ability can self-assign via /perks
+  pickableRoleIds String[] @default([])
+
   /// The role to use as starting position for the custom premium roles, with a fallback to the original premium role
   startingPositionRoleId String?
 
@@ -258,6 +261,7 @@ model RoleAbilities {
   canCreateClan          Boolean @default(false)
   areAbilitiesMultiGuild Boolean @default(false)
   canUploadCustomEmoji   Boolean @default(false)
+  canPickSubscriberRole  Boolean @default(false)
 
   @@id([guildId, roleId])
   @@map("role_abilities")

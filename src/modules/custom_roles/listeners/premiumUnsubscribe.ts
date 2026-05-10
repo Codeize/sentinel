@@ -46,6 +46,9 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 			!newMemberAbilities.hasAbility('canCreateCustomRole');
 		const canNoLongerGiftLegend =
 			oldMemberAbilities.hasAbility('canGiftLegend') && !newMemberAbilities.hasAbility('canGiftLegend');
+		const canNoLongerPickSubscriberRole =
+			oldMemberAbilities.hasAbility('canPickSubscriberRole') &&
+			!newMemberAbilities.hasAbility('canPickSubscriberRole');
 
 		Sentry.addBreadcrumb({
 			category: 'clan',
@@ -56,6 +59,7 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 				canNoLongerCreateClan,
 				canNoLongerCreateCustomRole,
 				canNoLongerGiftLegend,
+				canNoLongerPickSubscriberRole,
 				hasClan: Boolean(clan),
 			},
 		});
@@ -162,6 +166,48 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 						Sentry.captureException(error);
 					});
 				}
+			}
+		}
+
+		if (canNoLongerPickSubscriberRole) {
+			Sentry.addBreadcrumb({
+				category: 'clan',
+				message: `${logPrefix} Member can no longer pick subscriber roles, stripping any picked perks`,
+				level: 'info',
+				data: tags,
+			});
+
+			try {
+				const guildConfig = await this.container.prisma.premiumGuildRoleConfig.findFirst({
+					where: { guildId: newMember.guild.id },
+				});
+
+				const pickableRoleIds = guildConfig?.pickableRoleIds ?? [];
+				const toRemove = pickableRoleIds.filter((roleId) => newMember.roles.cache.has(roleId));
+
+				for (const roleId of toRemove) {
+					await newMember.roles.remove(roleId, 'Lost canPickSubscriberRole ability');
+				}
+
+				Sentry.addBreadcrumb({
+					category: 'clan',
+					message: `${logPrefix} Stripped ${toRemove.length} subscriber perk role(s)`,
+					level: 'info',
+					data: { ...tags, removed: toRemove.length },
+				});
+			} catch (error) {
+				Sentry.addBreadcrumb({
+					category: 'clan',
+					message: `${logPrefix} Failed to strip subscriber perk roles`,
+					level: 'error',
+					data: { ...tags, error: String(error) },
+				});
+				Sentry.withScope((scope) => {
+					scope.setTags(tags);
+					scope.setTag('operation', 'premiumUnsubscribe');
+					scope.setExtra('context', 'strip subscriber perk roles failed');
+					Sentry.captureException(error);
+				});
 			}
 		}
 

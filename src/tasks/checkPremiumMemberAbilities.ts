@@ -21,10 +21,12 @@ export interface CheckPremiumMemberAbilitiesOptions {
 export interface CheckPremiumMemberAbilitiesResult {
 	fixed: number;
 	orphanedClansFixed: number;
+	strayPickUsersFixed: number;
 	totalChecked: number;
 	totalMismatches: number;
 	totalMissing: number;
 	totalOrphanedClansWithoutTask: number;
+	totalStrayPickUsers: number;
 }
 
 const LOG_PREFIX = LogPrefix.PREMIUM_ABILITY_CHECK;
@@ -261,6 +263,8 @@ export class CheckPremiumMemberAbilities extends Task {
 				fixed: 0,
 				totalOrphanedClansWithoutTask: 0,
 				orphanedClansFixed: 0,
+				totalStrayPickUsers: 0,
+				strayPickUsersFixed: 0,
 			};
 		}
 
@@ -361,7 +365,9 @@ export class CheckPremiumMemberAbilities extends Task {
 						memberAbilities.hasAbility('canCreateClan') ||
 						memberAbilities.hasAbility('canCreateCustomRole') ||
 						memberAbilities.hasAbility('canGiftLegend') ||
-						memberAbilities.hasAbility('areAbilitiesMultiGuild');
+						memberAbilities.hasAbility('areAbilitiesMultiGuild') ||
+						memberAbilities.hasAbility('canUploadCustomEmoji') ||
+						memberAbilities.hasAbility('canPickSubscriberRole');
 
 					addBreadcrumb('Ability check result', {
 						userId: premiumMember.userId,
@@ -370,6 +376,8 @@ export class CheckPremiumMemberAbilities extends Task {
 						canCreateCustomRole: memberAbilities.hasAbility('canCreateCustomRole'),
 						canGiftLegend: memberAbilities.hasAbility('canGiftLegend'),
 						areAbilitiesMultiGuild: memberAbilities.hasAbility('areAbilitiesMultiGuild'),
+						canUploadCustomEmoji: memberAbilities.hasAbility('canUploadCustomEmoji'),
+						canPickSubscriberRole: memberAbilities.hasAbility('canPickSubscriberRole'),
 					});
 
 					if (!hasAnyAbility) {
@@ -630,7 +638,148 @@ export class CheckPremiumMemberAbilities extends Task {
 
 		addBreadcrumb('Clan iteration completed', { totalOrphanedClansWithoutTask, orphanedClansFixed });
 
-		const summary = `Checked ${totalChecked} members, found ${totalMismatches} mismatches, ${totalMissing} missing${totalOrphanedClansWithoutTask > 0 ? `, ${totalOrphanedClansWithoutTask} orphaned clans` : ''}${fixMode === 'dry-run' ? '' : `, fixed ${fixed} members and scheduled ${orphanedClansFixed} orphaned clans for deletion`}.`;
+		// Catch members who picked perk roles via /pick-role but no longer have canPickSubscriberRole
+		// (e.g. premium revoked while bot was offline). Listener-based stripping covers the live case;
+		// this is the periodic safety net.
+		this.container.logger.info(`${LOG_PREFIX} Checking for stray subscriber pickable roles...`);
+		addBreadcrumb('Starting stray pickable role check');
+
+		let totalStrayPickUsers = 0;
+		let strayPickUsersFixed = 0;
+
+		let pickableConfigs: { guildId: string; pickableRoleIds: string[] }[] = [];
+		try {
+			pickableConfigs = await this.container.prisma.premiumGuildRoleConfig.findMany({
+				where: options.guildId ? { guildId: options.guildId } : {},
+				select: { guildId: true, pickableRoleIds: true },
+			});
+			addBreadcrumb('Pickable configs query completed', { count: pickableConfigs.length });
+		} catch (error) {
+			addBreadcrumb('Pickable configs query FAILED', { error: String(error) }, 'error');
+			captureError(error as Error, 'checkAbilities: premiumGuildRoleConfig.findMany failed');
+		}
+
+		for (const config of pickableConfigs) {
+			if (config.pickableRoleIds.length === 0) {
+				continue;
+			}
+
+			const guild = this.container.client.guilds.resolve(config.guildId);
+			if (!guild) {
+				addBreadcrumb('Guild not found for pickable config', { guildId: config.guildId }, 'warning');
+				continue;
+			}
+
+			try {
+				addBreadcrumb('Fetching all members for pickable check', { guildId: config.guildId });
+				await guild.members.fetch();
+			} catch (error) {
+				addBreadcrumb(
+					'Failed to fetch members for pickable check',
+					{ guildId: config.guildId, error: String(error) },
+					'error',
+				);
+				captureError(error as Error, 'checkAbilities: members.fetch for pickable check failed', {
+					guildId: config.guildId,
+				});
+				continue;
+			}
+
+			const candidateIds = new Set<string>();
+			for (const roleId of config.pickableRoleIds) {
+				const role = guild.roles.cache.get(roleId);
+				if (!role) {
+					continue;
+				}
+
+				for (const memberId of role.members.keys()) {
+					candidateIds.add(memberId);
+				}
+			}
+
+			addBreadcrumb('Candidates with pickable roles identified', {
+				guildId: config.guildId,
+				candidateCount: candidateIds.size,
+			});
+
+			for (const userId of candidateIds) {
+				const member = guild.members.cache.get(userId);
+				if (!member) {
+					continue;
+				}
+
+				const memberAbilities = new MemberAbilities(member);
+
+				try {
+					await memberAbilities.computeAbilities();
+				} catch (abilityError) {
+					addBreadcrumb(
+						'Failed to compute abilities for stray pick check',
+						{ userId, guildId: config.guildId, error: String(abilityError) },
+						'error',
+					);
+					captureError(abilityError as Error, 'checkAbilities: computeAbilities for stray pick failed', {
+						userId,
+						guildId: config.guildId,
+					});
+					continue;
+				}
+
+				if (memberAbilities.hasAbility('canPickSubscriberRole')) {
+					continue;
+				}
+
+				const strayRoles = config.pickableRoleIds.filter((roleId) => member.roles.cache.has(roleId));
+				if (strayRoles.length === 0) {
+					continue;
+				}
+
+				totalStrayPickUsers++;
+
+				this.container.logger.warn(
+					`${LOG_PREFIX} [STRAY PICKS] User ${member.user.tag} (${userId}) in guild ${guild.name} (${guild.id}) has ${strayRoles.length} pickable role(s) but no canPickSubscriberRole ability.`,
+				);
+				addBreadcrumb('STRAY PICKS detected', { userId, guildId: config.guildId, strayRoles }, 'warning');
+				captureWarning(`Stray subscriber picks: ${member.user.tag} (${userId})`, {
+					userId,
+					guildId: config.guildId,
+					strayRoles,
+				});
+
+				if (fixMode === 'fix-mismatches' || fixMode === 'fix-all') {
+					let allRolesRemoved = true;
+
+					for (const roleId of strayRoles) {
+						try {
+							await member.roles.remove(
+								roleId,
+								'Stray subscriber pick: lost canPickSubscriberRole (reconciler)',
+							);
+						} catch (error) {
+							allRolesRemoved = false;
+							addBreadcrumb(
+								'Failed to remove stray pickable role',
+								{ userId, guildId: config.guildId, roleId, error: String(error) },
+								'error',
+							);
+							captureError(error as Error, 'checkAbilities: remove stray pickable role failed', {
+								userId,
+								guildId: config.guildId,
+								roleId,
+							});
+						}
+					}
+
+					if (allRolesRemoved) {
+						strayPickUsersFixed++;
+					}
+				}
+			}
+		}
+
+		addBreadcrumb('Stray pickable role check completed', { totalStrayPickUsers, strayPickUsersFixed });
+
+		const summary = `Checked ${totalChecked} members, found ${totalMismatches} mismatches, ${totalMissing} missing${totalOrphanedClansWithoutTask > 0 ? `, ${totalOrphanedClansWithoutTask} orphaned clans` : ''}${totalStrayPickUsers > 0 ? `, ${totalStrayPickUsers} stray pick users` : ''}${fixMode === 'dry-run' ? '' : `, fixed ${fixed} members, scheduled ${orphanedClansFixed} orphaned clans for deletion, and stripped picks from ${strayPickUsersFixed} users`}.`;
 
 		this.container.logger.info(`${LOG_PREFIX} Completed. ${summary}`);
 		addBreadcrumb('checkAbilities completed', {
@@ -640,6 +789,8 @@ export class CheckPremiumMemberAbilities extends Task {
 			fixed,
 			totalOrphanedClansWithoutTask,
 			orphanedClansFixed,
+			totalStrayPickUsers,
+			strayPickUsersFixed,
 			fixMode,
 		});
 
@@ -650,6 +801,8 @@ export class CheckPremiumMemberAbilities extends Task {
 			fixed,
 			totalOrphanedClansWithoutTask,
 			orphanedClansFixed,
+			totalStrayPickUsers,
+			strayPickUsersFixed,
 		};
 	}
 }
