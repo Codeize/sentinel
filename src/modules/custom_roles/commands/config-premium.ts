@@ -789,6 +789,7 @@ export class ConfigPremiumCommand extends Subcommand {
 										.addChoices(
 											{ name: 'Create a clan', value: 'canCreateClan' },
 											{ name: 'Create a custom role', value: 'canCreateCustomRole' },
+											{ name: 'Create a custom command', value: 'canCreateCustomCommand' },
 											{ name: 'Gift Legend', value: 'canGiftLegend' },
 											{
 												name: 'Use abilities on multiple servers',
@@ -817,6 +818,7 @@ export class ConfigPremiumCommand extends Subcommand {
 										.addChoices(
 											{ name: 'Create a clan', value: 'canCreateClan' },
 											{ name: 'Create a custom role', value: 'canCreateCustomRole' },
+											{ name: 'Create a custom command', value: 'canCreateCustomCommand' },
 											{ name: 'Gift Legend', value: 'canGiftLegend' },
 											{
 												name: 'Use abilities on multiple servers',
@@ -1190,9 +1192,7 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		if (staleLooking.size === 0) {
 			await interaction.editReply({
-				embeds: [
-					createInfoEmbed('Every Legend role holder is covered by a gift entry - nothing to export.'),
-				],
+				embeds: [createInfoEmbed('Every Legend role holder is covered by a gift entry - nothing to export.')],
 			});
 			return;
 		}

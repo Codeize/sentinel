@@ -46,6 +46,9 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 			!newMemberAbilities.hasAbility('canCreateCustomRole');
 		const canNoLongerGiftLegend =
 			oldMemberAbilities.hasAbility('canGiftLegend') && !newMemberAbilities.hasAbility('canGiftLegend');
+		const canNoLongerCreateCustomCommand =
+			oldMemberAbilities.hasAbility('canCreateCustomCommand') &&
+			!newMemberAbilities.hasAbility('canCreateCustomCommand');
 		const canNoLongerPickSubscriberRole =
 			oldMemberAbilities.hasAbility('canPickSubscriberRole') &&
 			!newMemberAbilities.hasAbility('canPickSubscriberRole');
@@ -59,6 +62,7 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 				canNoLongerCreateClan,
 				canNoLongerCreateCustomRole,
 				canNoLongerGiftLegend,
+				canNoLongerCreateCustomCommand,
 				canNoLongerPickSubscriberRole,
 				hasClan: Boolean(clan),
 			},
@@ -163,6 +167,45 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 					scope.setTags(tags);
 					scope.setTag('operation', 'premiumUnsubscribe');
 					scope.setExtra('context', 'deleteGiftedRole failed');
+					Sentry.captureException(error);
+				});
+			}
+		}
+
+		if (canNoLongerCreateCustomCommand) {
+			Sentry.addBreadcrumb({
+				category: 'clan',
+				message: `${logPrefix} Member can no longer create custom commands, deleting clan custom commands`,
+				level: 'info',
+				data: tags,
+			});
+
+			try {
+				const deleted = await this.container.prisma.clanCustomCommand.deleteMany({
+					where: {
+						guildId: newMember.guild.id,
+						createdByUserId: newMember.id,
+						...(premiumMember?.customRoleId ? { clanCustomRoleId: premiumMember.customRoleId } : {}),
+					},
+				});
+
+				Sentry.addBreadcrumb({
+					category: 'clan',
+					message: `${logPrefix} Deleted clan custom commands after ability loss`,
+					level: 'info',
+					data: { ...tags, deleted: deleted.count },
+				});
+			} catch (error) {
+				Sentry.addBreadcrumb({
+					category: 'clan',
+					message: `${logPrefix} Failed to delete clan custom commands after ability loss`,
+					level: 'error',
+					data: { ...tags, error: String(error) },
+				});
+				Sentry.withScope((scope) => {
+					scope.setTags(tags);
+					scope.setTag('operation', 'premiumUnsubscribe');
+					scope.setExtra('context', 'delete custom commands failed');
 					Sentry.captureException(error);
 				});
 			}

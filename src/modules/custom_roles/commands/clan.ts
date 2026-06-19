@@ -705,6 +705,8 @@ export class ClanCommand extends Subcommand {
 		const customRole = await clanManager.getCustomRole();
 		const clanOwnerId = clanManager.getClanOwnerId();
 		const customRoleId = await clanManager.getCustomRoleId();
+		
+		console.log(await clanManager.getClan())
 
 		Sentry.addBreadcrumb({
 			category: 'clan',
