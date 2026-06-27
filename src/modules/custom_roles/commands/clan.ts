@@ -1140,7 +1140,6 @@ export class ClanCommand extends Subcommand {
 		if (focusedOption.name === 'clan') {
 			const visibleClans = await this.container.prisma.clan.findMany({
 				where: { guildId: interaction.guildId, isVisibleInDirectory: true },
-				take: 25,
 			});
 
 			if (!visibleClans.length) {
