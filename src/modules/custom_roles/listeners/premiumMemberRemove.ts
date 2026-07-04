@@ -3,6 +3,7 @@ import { Events, Listener } from '@sapphire/framework';
 import * as Sentry from '@sentry/node';
 import type { GuildMember } from 'discord.js';
 import { ClanManager } from '../../../lib/abilities/ClanManager.js';
+import { deleteGiftedRole } from '../../../lib/abilities/legendGift.js';
 import { recordClanEvent } from '../../../lib/utils/clanHistory.js';
 import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 
@@ -93,7 +94,7 @@ export class GuildMemberRemove extends Listener<typeof Events.GuildMemberRemove>
 				}
 
 				try {
-					await ClanManager.deleteGiftedRole(premiumMember);
+					await deleteGiftedRole(premiumMember);
 				} catch (error) {
 					Sentry.addBreadcrumb({
 						category: 'clan',

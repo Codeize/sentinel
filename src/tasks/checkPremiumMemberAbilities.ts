@@ -3,6 +3,7 @@ import { Duration } from '@sapphire/time-utilities';
 import * as Sentry from '@sentry/node';
 import { ClanManager } from '../lib/abilities/ClanManager.js';
 import { MemberAbilities } from '../lib/abilities/MemberAbilities.js';
+import { deleteGiftedRole, restoreGiftedRole } from '../lib/abilities/legendGift.js';
 import { Task, type TaskRunData } from '../lib/schedule/tasks/Task.js';
 import { LogPrefix } from '../lib/utils/logPrefix.js';
 
@@ -31,6 +32,7 @@ export interface CheckPremiumMemberAbilitiesOptions {
 
 export interface CheckPremiumMemberAbilitiesResult {
 	fixed: number;
+	giftedRolesRestored: number;
 	orphanedClansFixed: number;
 	staleGiftsFixed: number;
 	strayPickUsersFixed: number;
@@ -246,7 +248,7 @@ export class CheckPremiumMemberAbilities extends Task {
 				giftedToUserId: premiumMember.giftedRoleToUserId,
 			});
 			try {
-				await ClanManager.deleteGiftedRole(premiumMember);
+				await deleteGiftedRole(premiumMember);
 				this.container.logger.info(
 					`${LOG_PREFIX} [CLEANUP] Revoked gifted Legend role from ${reason} member ${userId} (was gifted to ${premiumMember.giftedRoleToUserId})`,
 				);
@@ -332,6 +334,7 @@ export class CheckPremiumMemberAbilities extends Task {
 				orphanedClansFixed: 0,
 				totalStaleGifts: 0,
 				staleGiftsFixed: 0,
+				giftedRolesRestored: 0,
 				totalStrayPickUsers: 0,
 				strayPickUsersFixed: 0,
 			};
@@ -345,6 +348,7 @@ export class CheckPremiumMemberAbilities extends Task {
 		let orphanedClansFixed = 0;
 		let totalStaleGifts = 0;
 		let staleGiftsFixed = 0;
+		let giftedRolesRestored = 0;
 
 		if (premiumMembers.length > 0) {
 			addBreadcrumb('Starting premium member iteration', { totalMembers: premiumMembers.length });
@@ -531,7 +535,7 @@ export class CheckPremiumMemberAbilities extends Task {
 						if (hasAnyAbility && (fixMode === 'fix-mismatches' || fixMode === 'fix-all')) {
 							try {
 								addBreadcrumb('Revoking stale Legend gift', { userId: premiumMember.userId });
-								await ClanManager.deleteGiftedRole(premiumMember);
+								await deleteGiftedRole(premiumMember);
 								staleGiftsFixed++;
 								this.container.logger.info(
 									`${LOG_PREFIX} [FIXED] Revoked stale Legend gift from ${premiumMember.userId} to ${premiumMember.giftedRoleToUserId} in guild ${guild.name} (${guild.id})`,
@@ -548,6 +552,38 @@ export class CheckPremiumMemberAbilities extends Task {
 									guildId: premiumMember.guildId,
 								});
 							}
+						}
+					}
+
+					// Active gift with the gifting ability intact, but the recipient may be missing the
+					// Legend role (e.g. they were banned/kicked - which strips roles - and rejoined while the
+					// bot was offline, so the GuildMemberAdd listener never fired). Put it back to match the
+					// stored gift pointer.
+					if (
+						premiumMember.giftedRoleToUserId &&
+						memberAbilities.hasAbility('canGiftLegend') &&
+						(fixMode === 'fix-missing' || fixMode === 'fix-all')
+					) {
+						try {
+							const restored = await restoreGiftedRole(premiumMember);
+
+							if (restored) {
+								giftedRolesRestored++;
+								this.container.logger.info(
+									`${LOG_PREFIX} [FIXED] Restored missing Legend gift from ${premiumMember.userId} to ${premiumMember.giftedRoleToUserId} in guild ${guild.name} (${guild.id})`,
+								);
+								addBreadcrumb('Missing Legend gift restored', { userId: premiumMember.userId });
+							}
+						} catch (error) {
+							addBreadcrumb(
+								'Failed to restore missing Legend gift',
+								{ userId: premiumMember.userId, error: String(error) },
+								'error',
+							);
+							captureError(error as Error, 'checkAbilities: restoreGiftedRole failed', {
+								userId: premiumMember.userId,
+								guildId: premiumMember.guildId,
+							});
 						}
 					}
 				} catch (error) {
@@ -912,7 +948,7 @@ export class CheckPremiumMemberAbilities extends Task {
 		// externally to Stripe subscribers, which the bot has no way to identify. Stale gifts are
 		// only detectable through the giftedRoleToUserId entries handled above.
 
-		const summary = `Checked ${totalChecked} members, found ${totalMismatches} mismatches, ${totalMissing} missing${totalOrphanedClansWithoutTask > 0 ? `, ${totalOrphanedClansWithoutTask} orphaned clans` : ''}${totalStaleGifts > 0 ? `, ${totalStaleGifts} stale Legend gifts` : ''}${totalStrayPickUsers > 0 ? `, ${totalStrayPickUsers} stray pick users` : ''}${fixMode === 'dry-run' ? '' : `, fixed ${fixed} members, scheduled ${orphanedClansFixed} orphaned clans for deletion, revoked ${staleGiftsFixed} stale Legend gifts, and stripped picks from ${strayPickUsersFixed} users`}.`;
+		const summary = `Checked ${totalChecked} members, found ${totalMismatches} mismatches, ${totalMissing} missing${totalOrphanedClansWithoutTask > 0 ? `, ${totalOrphanedClansWithoutTask} orphaned clans` : ''}${totalStaleGifts > 0 ? `, ${totalStaleGifts} stale Legend gifts` : ''}${totalStrayPickUsers > 0 ? `, ${totalStrayPickUsers} stray pick users` : ''}${fixMode === 'dry-run' ? '' : `, fixed ${fixed} members, scheduled ${orphanedClansFixed} orphaned clans for deletion, revoked ${staleGiftsFixed} stale Legend gifts, restored ${giftedRolesRestored} missing Legend gifts, and stripped picks from ${strayPickUsersFixed} users`}.`;
 
 		this.container.logger.info(`${LOG_PREFIX} Completed. ${summary}`);
 		addBreadcrumb('checkAbilities completed', {
@@ -924,6 +960,7 @@ export class CheckPremiumMemberAbilities extends Task {
 			orphanedClansFixed,
 			totalStaleGifts,
 			staleGiftsFixed,
+			giftedRolesRestored,
 			totalStrayPickUsers,
 			strayPickUsersFixed,
 			fixMode,
@@ -938,6 +975,7 @@ export class CheckPremiumMemberAbilities extends Task {
 			orphanedClansFixed,
 			totalStaleGifts,
 			staleGiftsFixed,
+			giftedRolesRestored,
 			totalStrayPickUsers,
 			strayPickUsersFixed,
 		};

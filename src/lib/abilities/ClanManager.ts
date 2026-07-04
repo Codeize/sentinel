@@ -9,6 +9,7 @@ import { recordClanEvent } from '../utils/clanHistory.js';
 import { LogPrefix } from '../utils/logPrefix.js';
 import { ensureFullMember } from '../utils.js';
 import { MemberAbilities } from './MemberAbilities.js';
+import { deleteGiftedRole } from './legendGift.js';
 
 export const MAX_MEMBERS_IN_CLAN = 40;
 
@@ -853,7 +854,7 @@ export class ClanManager {
 
 			this.addBreadcrumb('Deleting gifted role');
 			try {
-				await ClanManager.deleteGiftedRole(premiumMember);
+				await deleteGiftedRole(premiumMember);
 				this.addBreadcrumb('Gifted role deleted');
 			} catch (error) {
 				this.addBreadcrumb('Failed to delete gifted role', { error: String(error) }, 'error');
@@ -987,120 +988,6 @@ export class ClanManager {
 				scope.setTags(tags);
 				scope.setTag('operation', 'deletePremiumRole');
 				scope.setExtra('context', 'database update after Discord role deletion');
-				Sentry.captureException(error);
-			});
-		}
-	}
-
-	public static async deleteGiftedRole(premiumMember: PremiumMember): Promise<void> {
-		const logPrefix = `[PREMIUM @${premiumMember.userId}@&${premiumMember.customRoleId}]`;
-		const tags = {
-			userId: premiumMember.userId,
-			guildId: premiumMember.guildId,
-			giftedToUserId: premiumMember.giftedRoleToUserId ?? 'none',
-		};
-
-		Sentry.addBreadcrumb({
-			category: 'clan',
-			message: `${logPrefix} Starting deleteGiftedRole`,
-			level: 'info',
-			data: tags,
-		});
-
-		const guild = container.client.guilds.cache.get(premiumMember.guildId);
-		const guildConfig = await container.prisma.premiumGuildRoleConfig.findFirst({
-			where: { guildId: premiumMember.guildId },
-		});
-
-		if (!guild || !premiumMember?.giftedRoleToUserId || !guildConfig?.legendRoleId) {
-			Sentry.addBreadcrumb({
-				category: 'clan',
-				message: `${logPrefix} deleteGiftedRole skipped: missing data`,
-				level: 'warning',
-				data: {
-					...tags,
-					hasGuild: Boolean(guild),
-					hasGiftedUserId: Boolean(premiumMember?.giftedRoleToUserId),
-					hasLegendRoleId: Boolean(guildConfig?.legendRoleId),
-				},
-			});
-			return;
-		}
-
-		const giftedUser = await guild.members.fetch(premiumMember.giftedRoleToUserId).catch(() => null);
-
-		if (giftedUser) {
-			try {
-				await giftedUser.roles.remove(guildConfig.legendRoleId, 'Original premium member left server');
-				container.logger.info(`${logPrefix} Deleted gifted role (Discord)`);
-				Sentry.addBreadcrumb({
-					category: 'clan',
-					message: `${logPrefix} Deleted gifted role (Discord)`,
-					level: 'info',
-					data: { ...tags, giftedUserId: giftedUser.id },
-				});
-				if (premiumMember.customRoleId) {
-					await recordClanEvent({
-						guildId: premiumMember.guildId,
-						customRoleId: premiumMember.customRoleId,
-						ownerUserId: premiumMember.userId,
-						targetUserId: premiumMember.giftedRoleToUserId,
-						eventType: 'GiftedRoleRevoked',
-						metadata: { legendRoleId: guildConfig.legendRoleId },
-					});
-				}
-			} catch (error) {
-				container.logger.error(`${logPrefix} Failed to remove gifted role`, {
-					userId: giftedUser.id,
-					guildId: premiumMember.guildId,
-					giftedBy: premiumMember.userId,
-					error,
-				});
-				Sentry.addBreadcrumb({
-					category: 'clan',
-					message: `${logPrefix} Failed to remove gifted role`,
-					level: 'error',
-					data: { ...tags, giftedUserId: giftedUser.id, error: String(error) },
-				});
-				Sentry.withScope((scope) => {
-					scope.setTags(tags);
-					scope.setTag('operation', 'deleteGiftedRole');
-					Sentry.captureException(error);
-				});
-			}
-		} else {
-			Sentry.addBreadcrumb({
-				category: 'clan',
-				message: `${logPrefix} Gifted user not found in guild`,
-				level: 'warning',
-				data: tags,
-			});
-		}
-
-		try {
-			await container.prisma.premiumMember.update({
-				where: { guildId_userId: { guildId: premiumMember.guildId, userId: premiumMember.userId } },
-				data: { giftedRoleToUserId: null },
-			});
-
-			container.logger.info(`${logPrefix} Deleted gifted role (database)`);
-			Sentry.addBreadcrumb({
-				category: 'clan',
-				message: `${logPrefix} Deleted gifted role (database)`,
-				level: 'info',
-				data: tags,
-			});
-		} catch (error) {
-			Sentry.addBreadcrumb({
-				category: 'clan',
-				message: `${logPrefix} Failed to update database after gifted role removal`,
-				level: 'error',
-				data: { ...tags, error: String(error) },
-			});
-			Sentry.withScope((scope) => {
-				scope.setTags(tags);
-				scope.setTag('operation', 'deleteGiftedRole');
-				scope.setExtra('context', 'database update after gifted role removal');
 				Sentry.captureException(error);
 			});
 		}

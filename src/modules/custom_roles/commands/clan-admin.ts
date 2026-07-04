@@ -1060,6 +1060,7 @@ export class ClanAdminCommand extends Subcommand {
 			VisibilityChanged: '👁️ Visibility changed',
 			PremiumRoleDeleted: '❌ Premium role deleted',
 			GiftedRoleRevoked: '🎁 Gifted role revoked',
+			GiftedRoleRestored: '🎁 Gifted role restored',
 		};
 
 		const meta: string[] = [];
