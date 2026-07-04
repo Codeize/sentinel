@@ -100,7 +100,9 @@ export class ClientReadyEvent extends Listener {
 					data: { guildId: guild.id, guildName: guild.name, progress: `${index + 1}/${totalGuilds}` },
 				});
 
-				await guild.members.fetch();
+				// Big guilds can take longer than discord.js's 120s default to stream every member chunk
+				// over the gateway, especially right after a cold restart - give them 5 minutes.
+				await guild.members.fetch({ time: 300_000 });
 				successCount++;
 
 				const memberCount = guild.members.cache.size;
