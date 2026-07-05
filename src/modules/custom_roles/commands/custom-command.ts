@@ -148,10 +148,11 @@ export class CustomCommandCommand extends Subcommand {
 			where: { guildId_trigger: { guildId: interaction.guildId, trigger } },
 		});
 
-		// Although unlikely, its' still possible the input would be a custom command not owned by the user's clan
+		// Although unlikely, its' still possible the input would be a custom command not owned by the user's clan,
+		// if it even exists at all.
 		if (!existingCommand || existingCommand.clanCustomRoleId !== clan.customRoleId) {
 			await interaction.editReply({
-				embeds: [createErrorEmbed("That custom command isn't owned by your clan.")],
+				embeds: [createErrorEmbed("That custom command isn't owned by your clan, or it does not exist.")],
 			});
 			return;
 		}
