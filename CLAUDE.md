@@ -160,6 +160,7 @@ Key Prisma models:
 -   **`PremiumMember`**, **`PremiumGuildRoleConfig`**: Premium features
 -   **`Clan`**, **`ClanMember`**: Clan system
 -   **`ClanEmojiCache`**: Caches clan role icon hashes to detect changes and avoid unnecessary re-uploads
+-   **`ClanHistoryEvent`**: Append-only audit trail of clan lifecycle events (creation, orphan/restore, gift revoke/restore, deletion); survives clan deletion
 -   **`RoleAbilities`**: Permission management for roles
 -   **`Notification`**, **`UserNotification`**: Notification system
 
@@ -286,8 +287,9 @@ The clan system allows premium members to create clans with:
 
 -   **Commands**: `/clan`, `/custom-role`, `/gift`, `/config-premium`
 -   **Abilities**: `ClanManager` handles permission checks
+-   **Legend gifts**: `lib/abilities/legendGift.ts` applies, revokes, and restores the gifted Legend role (kept separate from `ClanManager` since gifting is a premium perk, not a clan feature). The `restoreGiftedRoleOnJoin` listener re-adds it when a returning member is still an active gift target (e.g. a recipient who was banned/kicked and rejoined); `checkPremiumMemberAbilities` reconciles the same nightly
 -   **Tasks**: `UpdateClanDirectory`, `deleteOrphanClan`
--   **Database**: `Clan`, `ClanMember`, `PremiumMember`, `RoleAbilities`, `ClanEmojiCache`
+-   **Database**: `Clan`, `ClanMember`, `PremiumMember`, `RoleAbilities`, `ClanEmojiCache`, `ClanHistoryEvent`
 
 **Color Validation**: Uses `looks-same` library to prevent clan roles from having similar colors to staff roles.
 

@@ -30,11 +30,15 @@ export class PickRoleSelectHandler extends InteractionHandler {
 		interaction: StringSelectMenuInteraction<'cached'>,
 		data: InteractionHandler.ParseResult<this>,
 	) {
+		// Acknowledge within Discord's 3s window before the ability lookups and per-role add/remove API
+		// calls below - otherwise the final response 404s with 10062 (Unknown interaction).
+		await interaction.deferUpdate();
+
 		const memberAbilities = new MemberAbilities(interaction.member);
 		await memberAbilities.computeAbilities();
 
 		if (!memberAbilities.hasAbility('canPickSubscriberRole')) {
-			await interaction.update({
+			await interaction.editReply({
 				embeds: [createInfoEmbed('You no longer have the ability to pick subscriber perk roles.')],
 				components: [],
 			});
@@ -48,7 +52,7 @@ export class PickRoleSelectHandler extends InteractionHandler {
 		const pickableRoleIds = guildConfig?.pickableRoleIds ?? [];
 
 		if (pickableRoleIds.length === 0) {
-			await interaction.update({
+			await interaction.editReply({
 				embeds: [createInfoEmbed('There are no perk roles configured in this server.')],
 				components: [],
 			});
@@ -144,6 +148,6 @@ export class PickRoleSelectHandler extends InteractionHandler {
 			notice: noticeLines.join('\n'),
 		});
 
-		await interaction.update(payload);
+		await interaction.editReply(payload);
 	}
 }

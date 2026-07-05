@@ -1136,6 +1136,10 @@ export class ConfigPremiumCommand extends Subcommand {
 				description.push(`🔧 Stale Legend gifts revoked: ${result.staleGiftsFixed}`);
 			}
 
+			if (result.giftedRolesRestored > 0) {
+				description.push(`🔧 Missing Legend gifts restored: ${result.giftedRolesRestored}`);
+			}
+
 			if (result.strayPickUsersFixed > 0) {
 				description.push(`🔧 Stray subscriber picks stripped from: ${result.strayPickUsersFixed} user(s)`);
 			}
@@ -1146,7 +1150,7 @@ export class ConfigPremiumCommand extends Subcommand {
 				: fixMode === 'fix-missing' ? 'missing members'
 				: 'mismatches';
 			description.push(
-				`*Removed ${result.fixed} premium member entries, scheduled ${result.orphanedClansFixed} orphaned clans for deletion, revoked ${result.staleGiftsFixed} stale Legend gift(s), and stripped picks from ${result.strayPickUsersFixed} user(s) (${fixedWhat}).*`,
+				`*Removed ${result.fixed} premium member entries, scheduled ${result.orphanedClansFixed} orphaned clans for deletion, revoked ${result.staleGiftsFixed} stale Legend gift(s), restored ${result.giftedRolesRestored} missing Legend gift(s), and stripped picks from ${result.strayPickUsersFixed} user(s) (${fixedWhat}).*`,
 			);
 		}
 
