@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/node';
 import type { GuildMember } from 'discord.js';
 import { ClanManager } from '../../../lib/abilities/ClanManager.js';
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
+import { deleteGiftedRole } from '../../../lib/abilities/legendGift.js';
 import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 import { ensureFullMember } from '../../../lib/utils.js';
 
@@ -149,7 +150,7 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 			});
 
 			try {
-				await ClanManager.deleteGiftedRole(premiumMember);
+				await deleteGiftedRole(premiumMember);
 				Sentry.addBreadcrumb({
 					category: 'clan',
 					message: `${logPrefix} Gifted role deleted successfully`,
