@@ -586,103 +586,102 @@ export class CheckPremiumMemberAbilities extends Task {
 						}
 					}
 
-				if (!memberAbilities.hasAbility('canCreateCustomCommand')) {
-					const staleCustomCommandCount = await this.container.prisma.clanCustomCommand.count({
-						where: {
-							guildId: premiumMember.guildId,
-							createdByUserId: premiumMember.userId,
-							...(premiumMember.customRoleId ? { clanCustomRoleId: premiumMember.customRoleId } : {}),
-						},
-					});
+					if (!memberAbilities.hasAbility('canCreateCustomCommand')) {
+						const staleCustomCommandCount = await this.container.prisma.clanCustomCommand.count({
+							where: {
+								guildId: premiumMember.guildId,
+								createdByUserId: premiumMember.userId,
+								...(premiumMember.customRoleId ? { clanCustomRoleId: premiumMember.customRoleId } : {}),
+							},
+						});
 
-					if (staleCustomCommandCount > 0) {
-						this.container.logger.warn(
-							`${LOG_PREFIX} [STALE CUSTOM COMMANDS] User ${member.user.tag} (${premiumMember.userId}) in guild ${guild.name} (${guild.id}) has ${staleCustomCommandCount} custom command(s) but no canCreateCustomCommand ability.`,
-						);
-						addBreadcrumb(
-							'STALE CUSTOM COMMANDS detected',
-							{
+						if (staleCustomCommandCount > 0) {
+							this.container.logger.warn(
+								`${LOG_PREFIX} [STALE CUSTOM COMMANDS] User ${member.user.tag} (${premiumMember.userId}) in guild ${guild.name} (${guild.id}) has ${staleCustomCommandCount} custom command(s) but no canCreateCustomCommand ability.`,
+							);
+							addBreadcrumb(
+								'STALE CUSTOM COMMANDS detected',
+								{
+									userId: premiumMember.userId,
+									guildId: premiumMember.guildId,
+									count: staleCustomCommandCount,
+								},
+								'warning',
+							);
+							captureWarning(`Stale custom commands: ${member.user.tag} (${premiumMember.userId})`, {
 								userId: premiumMember.userId,
 								guildId: premiumMember.guildId,
 								count: staleCustomCommandCount,
-							},
-							'warning',
-						);
-						captureWarning(`Stale custom commands: ${member.user.tag} (${premiumMember.userId})`, {
-							userId: premiumMember.userId,
-							guildId: premiumMember.guildId,
-							count: staleCustomCommandCount,
-						});
+							});
 
-						if (hasAnyAbility && (fixMode === 'fix-mismatches' || fixMode === 'fix-all')) {
-							try {
-								const deleted = await this.container.prisma.clanCustomCommand.deleteMany({
-									where: {
-										guildId: premiumMember.guildId,
-										createdByUserId: premiumMember.userId,
-										...(premiumMember.customRoleId ?
-											{ clanCustomRoleId: premiumMember.customRoleId }
-										:	{}),
-									},
-								});
+							if (hasAnyAbility && (fixMode === 'fix-mismatches' || fixMode === 'fix-all')) {
+								try {
+									const deleted = await this.container.prisma.clanCustomCommand.deleteMany({
+										where: {
+											guildId: premiumMember.guildId,
+											createdByUserId: premiumMember.userId,
+											...(premiumMember.customRoleId ?
+												{ clanCustomRoleId: premiumMember.customRoleId }
+											:	{}),
+										},
+									});
 
-								this.container.logger.info(
-									`${LOG_PREFIX} [FIXED] Deleted ${deleted.count} stale custom command(s) for ${premiumMember.userId} in guild ${guild.name} (${guild.id})`,
-								);
-								addBreadcrumb('Stale custom commands deleted', {
-									userId: premiumMember.userId,
-									guildId: premiumMember.guildId,
-									deleted: deleted.count,
-								});
-							} catch (error) {
-								addBreadcrumb(
-									'Failed to delete stale custom commands',
-									{ userId: premiumMember.userId, error: String(error) },
-									'error',
-								);
-								captureError(
-									error as Error,
-									'checkAbilities: clanCustomCommand deleteMany for stale commands failed',
-									{
+									this.container.logger.info(
+										`${LOG_PREFIX} [FIXED] Deleted ${deleted.count} stale custom command(s) for ${premiumMember.userId} in guild ${guild.name} (${guild.id})`,
+									);
+									addBreadcrumb('Stale custom commands deleted', {
 										userId: premiumMember.userId,
 										guildId: premiumMember.guildId,
-									},
-								);
+										deleted: deleted.count,
+									});
+								} catch (error) {
+									addBreadcrumb(
+										'Failed to delete stale custom commands',
+										{ userId: premiumMember.userId, error: String(error) },
+										'error',
+									);
+									captureError(
+										error as Error,
+										'checkAbilities: clanCustomCommand deleteMany for stale commands failed',
+										{
+											userId: premiumMember.userId,
+											guildId: premiumMember.guildId,
+										},
+									);
+								}
 							}
-					}
-				}
-
-				// Active gift with the gifting ability intact, but the recipient may be missing the
-				// Legend role (e.g. they were banned/kicked - which strips roles - and rejoined while the
-				// bot was offline, so the GuildMemberAdd listener never fired). Put it back to match the
-				// stored gift pointer.
-				if (
-					premiumMember.giftedRoleToUserId &&
-					memberAbilities.hasAbility('canGiftLegend') &&
-					(fixMode === 'fix-missing' || fixMode === 'fix-all')
-				) {
-					try {
-						const restored = await restoreGiftedRole(premiumMember);
-
-						if (restored) {
-							giftedRolesRestored++;
-							this.container.logger.info(
-								`${LOG_PREFIX} [FIXED] Restored missing Legend gift from ${premiumMember.userId} to ${premiumMember.giftedRoleToUserId} in guild ${guild.name} (${guild.id})`,
-							);
-							addBreadcrumb('Missing Legend gift restored', { userId: premiumMember.userId });
 						}
-					} catch (error) {
-						addBreadcrumb(
-							'Failed to restore missing Legend gift',
-							{ userId: premiumMember.userId, error: String(error) },
-							'error',
-						);
-						captureError(error as Error, 'checkAbilities: restoreGiftedRole failed', {
-							userId: premiumMember.userId,
-							guildId: premiumMember.guildId,
-						});
 					}
-				}
+
+					// Active gift with the gifting ability intact, but the recipient may be missing the
+					// Legend role (e.g. they were banned/kicked - which strips roles - and rejoined while the
+					// bot was offline, so the GuildMemberAdd listener never fired). Put it back to match the
+					// stored gift pointer.
+					if (
+						premiumMember.giftedRoleToUserId &&
+						memberAbilities.hasAbility('canGiftLegend') &&
+						(fixMode === 'fix-missing' || fixMode === 'fix-all')
+					) {
+						try {
+							const restored = await restoreGiftedRole(premiumMember);
+
+							if (restored) {
+								giftedRolesRestored++;
+								this.container.logger.info(
+									`${LOG_PREFIX} [FIXED] Restored missing Legend gift from ${premiumMember.userId} to ${premiumMember.giftedRoleToUserId} in guild ${guild.name} (${guild.id})`,
+								);
+								addBreadcrumb('Missing Legend gift restored', { userId: premiumMember.userId });
+							}
+						} catch (error) {
+							addBreadcrumb(
+								'Failed to restore missing Legend gift',
+								{ userId: premiumMember.userId, error: String(error) },
+								'error',
+							);
+							captureError(error as Error, 'checkAbilities: restoreGiftedRole failed', {
+								userId: premiumMember.userId,
+								guildId: premiumMember.guildId,
+							});
 						}
 					}
 				} catch (error) {

@@ -380,4 +380,3 @@ model ClanHistoryEvent {
   @@index([guildId, ownerUserId])
   @@map("clan_history_events")
 }
-}
