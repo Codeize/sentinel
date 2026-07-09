@@ -23,6 +23,17 @@ export class PremiumRoleDeleteListener extends Listener<typeof Events.GuildRoleD
 			});
 		}
 
+		// If this role was a cleanup separator, clear that pointer so the leftover-role cleanup won't run unbounded
+		await this.container.prisma.premiumGuildRoleConfig.updateMany({
+			where: { guildId: role.guild.id, topSeparatorRoleId: role.id },
+			data: { topSeparatorRoleId: null },
+		});
+
+		await this.container.prisma.premiumGuildRoleConfig.updateMany({
+			where: { guildId: role.guild.id, bottomSeparatorRoleId: role.id },
+			data: { bottomSeparatorRoleId: null },
+		});
+
 		if (!isPremiumAbilityRole) {
 			return;
 		}

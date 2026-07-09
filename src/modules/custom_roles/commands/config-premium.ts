@@ -66,6 +66,16 @@ export class ConfigPremiumCommand extends Subcommand {
 			chatInputRun: 'setPositionRoleSubcommand',
 		},
 		{
+			type: 'method',
+			name: 'set-top-separator',
+			chatInputRun: 'setTopSeparatorSubcommand',
+		},
+		{
+			type: 'method',
+			name: 'set-bottom-separator',
+			chatInputRun: 'setBottomSeparatorSubcommand',
+		},
+		{
 			type: 'group',
 			name: 'staff-roles',
 			entries: [
@@ -168,12 +178,30 @@ export class ConfigPremiumCommand extends Subcommand {
 				interaction.guild.channels.resolve(premiumConfig.clanInviteChannelId)
 			:	null;
 
+		const topSeparator =
+			premiumConfig?.topSeparatorRoleId ?
+				interaction.guild.roles.resolve(premiumConfig.topSeparatorRoleId)
+			:	null;
+
+		const bottomSeparator =
+			premiumConfig?.bottomSeparatorRoleId ?
+				interaction.guild.roles.resolve(premiumConfig.bottomSeparatorRoleId)
+			:	null;
+
 		const representations = [
 			{ name: 'Giftable Role', value: giftableRole ? `<@&${giftableRole.id}> (${giftableRole.id})` : null },
 			{ name: 'Clan Category', value: clanCategory ? `<#${clanCategory.id}> (${clanCategory.id})` : null },
 			{
 				name: 'Clan Invite Channel',
 				value: clanInviteChannel ? `<#${clanInviteChannel.id}> (${clanInviteChannel.id})` : null,
+			},
+			{
+				name: 'Cleanup Top Separator',
+				value: topSeparator ? `<@&${topSeparator.id}> (${topSeparator.id})` : null,
+			},
+			{
+				name: 'Cleanup Bottom Separator',
+				value: bottomSeparator ? `<@&${bottomSeparator.id}> (${bottomSeparator.id})` : null,
 			},
 		];
 
@@ -545,6 +573,46 @@ export class ConfigPremiumCommand extends Subcommand {
 		});
 	}
 
+	public async setTopSeparatorSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		await this.setSeparatorRole(interaction, 'top');
+	}
+
+	public async setBottomSeparatorSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		await this.setSeparatorRole(interaction, 'bottom');
+	}
+
+	private async setSeparatorRole(
+		interaction: Subcommand.ChatInputCommandInteraction<'cached'>,
+		boundary: 'bottom' | 'top',
+	): Promise<void> {
+		const role = interaction.options.getRole('role', true);
+
+		const existingConfig = await this.container.prisma.premiumGuildRoleConfig.findFirst({
+			where: { guildId: interaction.guildId },
+		});
+
+		const previousRoleId =
+			boundary === 'top' ? existingConfig?.topSeparatorRoleId : existingConfig?.bottomSeparatorRoleId;
+		const previousRepresentation = previousRoleId ? `<@&${previousRoleId}> (${previousRoleId})` : 'none';
+
+		const data = boundary === 'top' ? { topSeparatorRoleId: role.id } : { bottomSeparatorRoleId: role.id };
+
+		await this.container.prisma.premiumGuildRoleConfig.upsert({
+			where: { guildId: interaction.guildId },
+			update: data,
+			create: { guildId: interaction.guildId, ...data },
+		});
+
+		await interaction.reply({
+			embeds: [
+				createInfoEmbed(
+					`Set the **${boundary}** cleanup separator in this server from ${previousRepresentation} to <@&${role.id}> (${role.id}).`,
+				),
+			],
+			flags: MessageFlags.Ephemeral,
+		});
+	}
+
 	public async listStaffRolesSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		const guildConfigs = await this.container.prisma.premiumGuildRoleConfig.findFirst({
 			where: { guildId: interaction.guildId },
@@ -839,6 +907,28 @@ export class ConfigPremiumCommand extends Subcommand {
 							role
 								.setName('role')
 								.setDescription('The position role (leave empty to reset/use the premium role)'),
+						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('set-top-separator')
+						.setDescription('Sets the role marking the TOP boundary of the custom/clan role region')
+						.addRoleOption((role) =>
+							role
+								.setName('role')
+								.setDescription('The role that sits just above all custom/clan roles')
+								.setRequired(true),
+						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('set-bottom-separator')
+						.setDescription('Sets the role marking the BOTTOM boundary of the custom/clan role region')
+						.addRoleOption((role) =>
+							role
+								.setName('role')
+								.setDescription('The role that sits just below all custom/clan roles')
+								.setRequired(true),
 						),
 				)
 				.addSubcommandGroup((role) =>

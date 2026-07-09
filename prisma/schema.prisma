@@ -227,6 +227,12 @@ model PremiumGuildRoleConfig {
   /// The role to use as starting position for the custom premium roles, with a fallback to the original premium role
   startingPositionRoleId String?
 
+  /// Upper boundary role of the custom/clan role region, used by the leftover-role cleanup to bound its search
+  topSeparatorRoleId String?
+
+  /// Lower boundary role of the custom/clan role region, used by the leftover-role cleanup to bound its search
+  bottomSeparatorRoleId String?
+
   @@map("premium_guild_role_configs")
 }
 
