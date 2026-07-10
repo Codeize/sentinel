@@ -101,8 +101,8 @@ export class ClientReadyEvent extends Listener {
 				});
 
 				// Big guilds can take longer than discord.js's 120s default to stream every member chunk
-				// over the gateway, especially right after a cold restart - give them 5 minutes.
-				await guild.members.fetch({ time: 300_000 });
+				// over the gateway, especially right after a cold restart - give them 10 minutes.
+				await guild.members.fetch({ time: 600_000 });
 				successCount++;
 
 				const memberCount = guild.members.cache.size;

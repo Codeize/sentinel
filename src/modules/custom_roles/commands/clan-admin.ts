@@ -1130,7 +1130,7 @@ export class ClanAdminCommand extends Subcommand {
 			const hasGiftedLegend = Boolean(member.giftedRoleToUserId);
 
 			// The reliable leak signal is "this role's clan was deleted" (a Deleted history event),
-			// NOT whether the owner is currently in the guild — a returning owner can have the stale
+			// NOT whether the owner is currently in the guild; a returning owner can have the stale
 			// role re-applied by a sticky-role bot, which looks identical to a legit standalone role.
 			const wasDeleted =
 				(await this.container.prisma.clanHistoryEvent.count({
@@ -1143,7 +1143,7 @@ export class ClanAdminCommand extends Subcommand {
 				classification = 'Leaked: clan was deleted (per history)';
 				recommendation = 'Delete the Discord role + clear the premium entry';
 			} else if (roleExists && ownerInGuild) {
-				classification = 'No clan-deletion in history — review (may be legit)';
+				classification = 'No clan-deletion in history, review (may be legit)';
 				recommendation = 'Manual review (history backfill improves this)';
 			} else if (roleExists) {
 				classification = 'Leaked: owner gone, role survived';
@@ -1175,11 +1175,11 @@ export class ClanAdminCommand extends Subcommand {
 			'',
 			`- 🗑️ **${leakedCount}** leaked (clan was deleted; role/entry survived)`,
 			`- 🧭 **${staleCount}** stale DB pointers (role already gone)`,
-			`- 🔎 **${reviewCount}** no clan-deletion in history — needs review (backfill improves this)`,
+			`- 🔎 **${reviewCount}** no clan-deletion in history, needs review (backfill improves this)`,
 		];
 		if (giftCount > 0) {
 			summaryLines.push(
-				`- 🎁 **${giftCount}** of these also have a gifted Legend role — review separately (could be Stripe).`,
+				`- 🎁 **${giftCount}** of these also have a gifted Legend role, review separately (could be Stripe).`,
 			);
 		}
 
@@ -1221,7 +1221,7 @@ export class ClanAdminCommand extends Subcommand {
 		let deletionStarted = false;
 
 		try {
-			// ── Step 1: validate configuration ──────────────────────────────
+			// Step 1: validate configuration
 			const config = await this.container.prisma.premiumGuildRoleConfig.findFirst({ where: { guildId } });
 
 			if (!config?.topSeparatorRoleId || !config.bottomSeparatorRoleId) {
@@ -1265,7 +1265,7 @@ export class ClanAdminCommand extends Subcommand {
 				return;
 			}
 
-			// ── Step 2: populate the member cache for accurate wearer counts ──
+			// Step 2: populate the member cache for accurate wearer counts
 			let memberCountsReliable = true;
 			try {
 				await interaction.guild.members.fetch();
@@ -1276,7 +1276,7 @@ export class ClanAdminCommand extends Subcommand {
 				);
 			}
 
-			// ── Step 3: build the whitelist of tracked role IDs ──────────────
+			// Step 3: build the whitelist of tracked role IDs
 			const [clans, premiumMembers, roleAbilities] = await Promise.all([
 				this.container.prisma.clan.findMany({ where: { guildId }, select: { customRoleId: true } }),
 				this.container.prisma.premiumMember.findMany({
@@ -1295,7 +1295,7 @@ export class ClanAdminCommand extends Subcommand {
 			if (config.legendRoleId) whitelist.add(config.legendRoleId);
 			if (config.startingPositionRoleId) whitelist.add(config.startingPositionRoleId);
 
-			// ── Step 4: collect candidate leftover roles in the region ───────
+			// Step 4: collect candidate leftover roles in the region
 			const me = await interaction.guild.members.fetchMe();
 			const botHighestPosition = me.roles.highest.position;
 
@@ -1313,7 +1313,7 @@ export class ClanAdminCommand extends Subcommand {
 			if (candidates.length === 0) {
 				await this.replyWithComponents(interaction, [
 					this.successMessage(
-						`No leftover roles between ${topSeparator} and ${bottomSeparator} — everything in that region is tracked. ✨`,
+						`No leftover roles between ${topSeparator} and ${bottomSeparator}. Everything in that region is tracked. ✨`,
 					),
 				]);
 				return;
@@ -1331,15 +1331,15 @@ export class ClanAdminCommand extends Subcommand {
 			const withMembers = rows.filter((row) => row.memberCount > 0);
 			const totalWearers = rows.reduce((sum, row) => sum + row.memberCount, 0);
 
-			// ── Step 5: build the report (shown in BOTH modes) ───────────────
+			// Step 5: build the report (shown in BOTH modes)
 			const inlineLimit = 15;
 			const inlineLines = rows.slice(0, inlineLimit).map((row) => {
 				const wearers =
 					row.memberCount > 0 ?
 						`⚠️ **${row.memberCount}** member${row.memberCount === 1 ? '' : 's'} wearing it`
 					:	'no members';
-				const lock = row.aboveBot ? ' 🔒 above my highest role — cannot delete' : '';
-				return `- <@&${row.id}> (\`${row.id}\`) — ${wearers}${lock}`;
+				const lock = row.aboveBot ? ' 🔒 above my highest role, cannot delete' : '';
+				return `- <@&${row.id}> (\`${row.id}\`): ${wearers}${lock}`;
 			});
 			if (rows.length > inlineLimit) {
 				inlineLines.push(`- …and **${rows.length - inlineLimit}** more (see the attached CSV).`);
@@ -1347,8 +1347,8 @@ export class ClanAdminCommand extends Subcommand {
 
 			const headerLine =
 				mode === 'execute' ?
-					'## 🧹 Leftover role cleanup — review before deleting'
-				:	'## 🧹 Leftover role cleanup — dry run';
+					'## 🧹 Leftover role cleanup: review before deleting'
+				:	'## 🧹 Leftover role cleanup (dry run)';
 
 			const summaryLines = [
 				headerLine,
@@ -1373,11 +1373,11 @@ export class ClanAdminCommand extends Subcommand {
 
 			const reportCsv = this.buildLeftoverCsv(guildId, rows, mode === 'dry-run' ? 'dry-run' : 'pending');
 
-			// ── Dry run: report and stop ─────────────────────────────────────
+			// Dry run: report and stop
 			if (mode === 'dry-run') {
 				summaryLines.push(
 					'',
-					'-# Dry run — nothing was changed. Re-run with `mode: Execute` to delete these (you still get a confirmation button first).',
+					'-# Dry run. Nothing was changed. Re-run with `mode: Execute` to delete these (you still get a confirmation button first).',
 				);
 				await interaction.editReply({
 					content: summaryLines.join('\n'),
@@ -1387,7 +1387,7 @@ export class ClanAdminCommand extends Subcommand {
 				return;
 			}
 
-			// ── Execute mode: nothing actually deletable ─────────────────────
+			// Execute mode: nothing actually deletable
 			if (deletable.length === 0) {
 				summaryLines.push(
 					'',
@@ -1401,7 +1401,7 @@ export class ClanAdminCommand extends Subcommand {
 				return;
 			}
 
-			// ── Execute mode: confirmation gate ──────────────────────────────
+			// Execute mode: confirmation gate
 			summaryLines.push(
 				'',
 				`-# Press **Delete ${deletable.length} role${deletable.length === 1 ? '' : 's'}** within 60s to proceed.${blocked.length > 0 ? ` The ${blocked.length} role(s) above my role will be skipped.` : ''} Nothing has been changed yet.`,
@@ -1456,7 +1456,7 @@ export class ClanAdminCommand extends Subcommand {
 				allowedMentions: { parse: [] },
 			});
 
-			// ── Step 6: delete, recording every outcome ──────────────────────
+			// Step 6: delete, recording every outcome
 			deletionStarted = true;
 			const auditReason = `Leftover role cleanup by ${interaction.user.tag} via /clan-admin prune-leftover-roles`;
 
@@ -1473,10 +1473,10 @@ export class ClanAdminCommand extends Subcommand {
 				}
 			}
 
-			// ── Step 7: final report ─────────────────────────────────────────
+			// Step 7: final report
 			const removedWearers = deleted.reduce((sum, row) => sum + row.memberCount, 0);
 			const resultLines = [
-				'## 🧹 Leftover role cleanup — done',
+				'## 🧹 Leftover role cleanup: done',
 				`Attempted **${deletable.length}** deletion${deletable.length === 1 ? '' : 's'}.`,
 				'',
 				`- ✅ **${deleted.length}** deleted`,
@@ -1520,11 +1520,11 @@ export class ClanAdminCommand extends Subcommand {
 				`${LogPrefix.CLAN} [${guildId}] prune-leftover-roles crashed (mode=${mode}): ${error instanceof Error ? error.stack : message}`,
 			);
 
-			const crashLines = ['## 🧹 Leftover role cleanup — error', `❌ Something went wrong: \`${message}\``];
+			const crashLines = ['## 🧹 Leftover role cleanup: error', `❌ Something went wrong: \`${message}\``];
 			if (deletionStarted) {
 				crashLines.push(
 					'',
-					`This happened **during deletion**. Before the error: ✅ **${deleted.length}** deleted, ❌ **${failed.length}** failed. Deleted roles stay deleted — re-run in dry-run mode to see what remains.`,
+					`This happened **during deletion**. Before the error: ✅ **${deleted.length}** deleted, ❌ **${failed.length}** failed. Deleted roles stay deleted. Re-run in dry-run mode to see what remains.`,
 				);
 			} else {
 				crashLines.push('', 'This happened **before any deletion**, so nothing was changed.');
