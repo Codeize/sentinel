@@ -613,43 +613,6 @@ export class CheckPremiumMemberAbilities extends Task {
 								guildId: premiumMember.guildId,
 								count: staleCustomCommandCount,
 							});
-
-							if (hasAnyAbility && (fixMode === 'fix-mismatches' || fixMode === 'fix-all')) {
-								try {
-									const deleted = await this.container.prisma.clanCustomCommand.deleteMany({
-										where: {
-											guildId: premiumMember.guildId,
-											createdByUserId: premiumMember.userId,
-											...(premiumMember.customRoleId ?
-												{ clanCustomRoleId: premiumMember.customRoleId }
-											:	{}),
-										},
-									});
-
-									this.container.logger.info(
-										`${LOG_PREFIX} [FIXED] Deleted ${deleted.count} stale custom command(s) for ${premiumMember.userId} in guild ${guild.name} (${guild.id})`,
-									);
-									addBreadcrumb('Stale custom commands deleted', {
-										userId: premiumMember.userId,
-										guildId: premiumMember.guildId,
-										deleted: deleted.count,
-									});
-								} catch (error) {
-									addBreadcrumb(
-										'Failed to delete stale custom commands',
-										{ userId: premiumMember.userId, error: String(error) },
-										'error',
-									);
-									captureError(
-										error as Error,
-										'checkAbilities: clanCustomCommand deleteMany for stale commands failed',
-										{
-											userId: premiumMember.userId,
-											guildId: premiumMember.guildId,
-										},
-									);
-								}
-							}
 						}
 					}
 
