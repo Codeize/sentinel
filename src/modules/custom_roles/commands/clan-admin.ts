@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import type { Clan, ClanEventType, ClanHistoryEvent } from '@prisma/client';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import {
+	ActionRowBuilder,
 	type ApplicationCommandOptionChoiceData,
 	AttachmentBuilder,
 	type AutocompleteInteraction,
@@ -46,6 +47,17 @@ interface ReconcileRow {
 	ownerUserId: string;
 	recommendation: string;
 	roleExists: boolean;
+}
+
+interface LeftoverRoleRow {
+	aboveBot: boolean;
+	id: string;
+	memberCount: number;
+	name: string;
+}
+
+function csvEscape(value: string): string {
+	return /[\n",]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
 
 export class ClanAdminCommand extends Subcommand {
@@ -94,6 +106,11 @@ export class ClanAdminCommand extends Subcommand {
 			type: 'method',
 			name: 'reconcile',
 			chatInputRun: 'reconcileSubcommand',
+		},
+		{
+			type: 'method',
+			name: 'prune-leftover-roles',
+			chatInputRun: 'pruneLeftoverRolesSubcommand',
 		},
 	];
 
@@ -1113,7 +1130,7 @@ export class ClanAdminCommand extends Subcommand {
 			const hasGiftedLegend = Boolean(member.giftedRoleToUserId);
 
 			// The reliable leak signal is "this role's clan was deleted" (a Deleted history event),
-			// NOT whether the owner is currently in the guild — a returning owner can have the stale
+			// NOT whether the owner is currently in the guild; a returning owner can have the stale
 			// role re-applied by a sticky-role bot, which looks identical to a legit standalone role.
 			const wasDeleted =
 				(await this.container.prisma.clanHistoryEvent.count({
@@ -1126,7 +1143,7 @@ export class ClanAdminCommand extends Subcommand {
 				classification = 'Leaked: clan was deleted (per history)';
 				recommendation = 'Delete the Discord role + clear the premium entry';
 			} else if (roleExists && ownerInGuild) {
-				classification = 'No clan-deletion in history — review (may be legit)';
+				classification = 'No clan-deletion in history, review (may be legit)';
 				recommendation = 'Manual review (history backfill improves this)';
 			} else if (roleExists) {
 				classification = 'Leaked: owner gone, role survived';
@@ -1158,11 +1175,11 @@ export class ClanAdminCommand extends Subcommand {
 			'',
 			`- 🗑️ **${leakedCount}** leaked (clan was deleted; role/entry survived)`,
 			`- 🧭 **${staleCount}** stale DB pointers (role already gone)`,
-			`- 🔎 **${reviewCount}** no clan-deletion in history — needs review (backfill improves this)`,
+			`- 🔎 **${reviewCount}** no clan-deletion in history, needs review (backfill improves this)`,
 		];
 		if (giftCount > 0) {
 			summaryLines.push(
-				`- 🎁 **${giftCount}** of these also have a gifted Legend role — review separately (could be Stripe).`,
+				`- 🎁 **${giftCount}** of these also have a gifted Legend role, review separately (could be Stripe).`,
 			);
 		}
 
@@ -1189,6 +1206,374 @@ export class ClanAdminCommand extends Subcommand {
 			content: summaryLines.join('\n'),
 			files: [attachment],
 			allowedMentions: { parse: [] },
+		});
+	}
+
+	public async pruneLeftoverRolesSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+		const guildId = interaction.guildId;
+		const mode = (interaction.options.getString('mode') ?? 'dry-run') as 'dry-run' | 'execute';
+
+		// Hoisted so the crash handler can report what was / was not done even if the loop throws.
+		const deleted: LeftoverRoleRow[] = [];
+		const failed: { reason: string; row: LeftoverRoleRow }[] = [];
+		let deletionStarted = false;
+
+		try {
+			// Step 1: validate configuration
+			const config = await this.container.prisma.premiumGuildRoleConfig.findFirst({ where: { guildId } });
+
+			if (!config?.topSeparatorRoleId || !config.bottomSeparatorRoleId) {
+				await this.replyWithComponents(interaction, [
+					this.errorMessage(
+						'Both cleanup separators must be configured before this can run.\n' +
+							'Set them with `/config-premium set-top-separator` and `/config-premium set-bottom-separator`.',
+					),
+				]);
+				return;
+			}
+
+			// Refresh the role cache so we compare against current positions.
+			await interaction.guild.roles.fetch();
+
+			const topSeparator = interaction.guild.roles.cache.get(config.topSeparatorRoleId) ?? null;
+			const bottomSeparator = interaction.guild.roles.cache.get(config.bottomSeparatorRoleId) ?? null;
+
+			if (!topSeparator || !bottomSeparator) {
+				const missing: string[] = [];
+				if (!topSeparator) missing.push(`top (\`${config.topSeparatorRoleId}\`)`);
+				if (!bottomSeparator) missing.push(`bottom (\`${config.bottomSeparatorRoleId}\`)`);
+				await this.replyWithComponents(interaction, [
+					this.errorMessage(
+						`A configured separator role no longer exists: ${missing.join(' and ')}.\n` +
+							'Re-configure the separators before running the cleanup. Nothing was changed.',
+					),
+				]);
+				return;
+			}
+
+			const highPosition = Math.max(topSeparator.position, bottomSeparator.position);
+			const lowPosition = Math.min(topSeparator.position, bottomSeparator.position);
+
+			if (highPosition - lowPosition < 2) {
+				await this.replyWithComponents(interaction, [
+					this.infoMessage(
+						`${topSeparator} and ${bottomSeparator} are adjacent in the hierarchy, so there are no roles between them. Nothing to do.`,
+					),
+				]);
+				return;
+			}
+
+			// Step 2: populate the member cache for accurate wearer counts
+			let memberCountsReliable = true;
+			try {
+				await interaction.guild.members.fetch();
+			} catch (error) {
+				memberCountsReliable = false;
+				this.container.logger.warn(
+					`${LogPrefix.CLAN} [${guildId}] prune-leftover-roles: member fetch failed, wearer counts may be undercounted: ${error}`,
+				);
+			}
+
+			// Step 3: build the whitelist of tracked role IDs
+			const [clans, premiumMembers, roleAbilities] = await Promise.all([
+				this.container.prisma.clan.findMany({ where: { guildId }, select: { customRoleId: true } }),
+				this.container.prisma.premiumMember.findMany({
+					where: { guildId, customRoleId: { not: null } },
+					select: { customRoleId: true },
+				}),
+				this.container.prisma.roleAbilities.findMany({ where: { guildId }, select: { roleId: true } }),
+			]);
+
+			const whitelist = new Set<string>([topSeparator.id, bottomSeparator.id]);
+			for (const clan of clans) whitelist.add(clan.customRoleId);
+			for (const member of premiumMembers) if (member.customRoleId) whitelist.add(member.customRoleId);
+			for (const ability of roleAbilities) whitelist.add(ability.roleId);
+			for (const roleId of config.staffRoles) whitelist.add(roleId);
+			for (const roleId of config.pickableRoleIds) whitelist.add(roleId);
+			if (config.legendRoleId) whitelist.add(config.legendRoleId);
+			if (config.startingPositionRoleId) whitelist.add(config.startingPositionRoleId);
+
+			// Step 4: collect candidate leftover roles in the region
+			const me = await interaction.guild.members.fetchMe();
+			const botHighestPosition = me.roles.highest.position;
+
+			const candidates = [...interaction.guild.roles.cache.values()]
+				.filter(
+					(role) =>
+						role.position > lowPosition &&
+						role.position < highPosition &&
+						role.id !== interaction.guildId && // never @everyone
+						!role.managed && // never bot/integration/booster roles
+						!whitelist.has(role.id),
+				)
+				.sort((a, b) => b.position - a.position);
+
+			if (candidates.length === 0) {
+				await this.replyWithComponents(interaction, [
+					this.successMessage(
+						`No leftover roles between ${topSeparator} and ${bottomSeparator}. Everything in that region is tracked. ✨`,
+					),
+				]);
+				return;
+			}
+
+			const rows: LeftoverRoleRow[] = candidates.map((role) => ({
+				aboveBot: role.position >= botHighestPosition,
+				id: role.id,
+				memberCount: role.members.size,
+				name: role.name,
+			}));
+
+			const deletable = rows.filter((row) => !row.aboveBot);
+			const blocked = rows.filter((row) => row.aboveBot);
+			const withMembers = rows.filter((row) => row.memberCount > 0);
+			const totalWearers = rows.reduce((sum, row) => sum + row.memberCount, 0);
+
+			// Step 5: build the report (shown in BOTH modes)
+			const inlineLimit = 15;
+			const inlineLines = rows.slice(0, inlineLimit).map((row) => {
+				const wearers =
+					row.memberCount > 0 ?
+						`⚠️ **${row.memberCount}** member${row.memberCount === 1 ? '' : 's'} wearing it`
+					:	'no members';
+				const lock = row.aboveBot ? ' 🔒 above my highest role, cannot delete' : '';
+				return `- <@&${row.id}> (\`${row.id}\`): ${wearers}${lock}`;
+			});
+			if (rows.length > inlineLimit) {
+				inlineLines.push(`- …and **${rows.length - inlineLimit}** more (see the attached CSV).`);
+			}
+
+			const headerLine =
+				mode === 'execute' ?
+					'## 🧹 Leftover role cleanup: review before deleting'
+				:	'## 🧹 Leftover role cleanup (dry run)';
+
+			const summaryLines = [
+				headerLine,
+				`Scanning between ${topSeparator} and ${bottomSeparator}.`,
+				`Found **${rows.length}** leftover role${rows.length === 1 ? '' : 's'} not tracked in the database.`,
+				'',
+				`- 🗑️ **${deletable.length}** can be deleted`,
+				`- 👥 **${withMembers.length}** still worn by members (**${totalWearers}** total assignment${totalWearers === 1 ? '' : 's'})`,
+			];
+			if (blocked.length > 0) {
+				summaryLines.push(`- 🔒 **${blocked.length}** cannot be deleted (above my highest role)`);
+			}
+
+			if (!memberCountsReliable) {
+				summaryLines.push(
+					'',
+					'⚠️ I could not fetch the full member list, so wearer counts may be undercounted.',
+				);
+			}
+
+			summaryLines.push('', ...inlineLines);
+
+			const reportCsv = this.buildLeftoverCsv(guildId, rows, mode === 'dry-run' ? 'dry-run' : 'pending');
+
+			// Dry run: report and stop
+			if (mode === 'dry-run') {
+				summaryLines.push(
+					'',
+					'-# Dry run. Nothing was changed. Re-run with `mode: Execute` to delete these (you still get a confirmation button first).',
+				);
+				await interaction.editReply({
+					content: summaryLines.join('\n'),
+					files: [reportCsv],
+					allowedMentions: { parse: [] },
+				});
+				return;
+			}
+
+			// Execute mode: nothing actually deletable
+			if (deletable.length === 0) {
+				summaryLines.push(
+					'',
+					'-# Every leftover role is above my highest role, so I cannot delete any of them. Move my role higher and try again. Nothing was changed.',
+				);
+				await interaction.editReply({
+					content: summaryLines.join('\n'),
+					files: [reportCsv],
+					allowedMentions: { parse: [] },
+				});
+				return;
+			}
+
+			// Execute mode: confirmation gate
+			summaryLines.push(
+				'',
+				`-# Press **Delete ${deletable.length} role${deletable.length === 1 ? '' : 's'}** within 60s to proceed.${blocked.length > 0 ? ` The ${blocked.length} role(s) above my role will be skipped.` : ''} Nothing has been changed yet.`,
+			);
+
+			const confirmButton = new ButtonBuilder()
+				.setCustomId('clan-admin-prune-confirm')
+				.setLabel(`Delete ${deletable.length} role${deletable.length === 1 ? '' : 's'}`)
+				.setStyle(ButtonStyle.Danger);
+			const cancelButton = new ButtonBuilder()
+				.setCustomId('clan-admin-prune-cancel')
+				.setLabel('Cancel')
+				.setStyle(ButtonStyle.Secondary);
+			const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton);
+
+			const response = await interaction.editReply({
+				content: summaryLines.join('\n'),
+				files: [reportCsv],
+				components: [actionRow],
+				allowedMentions: { parse: [] },
+			});
+
+			let buttonInteraction;
+			try {
+				buttonInteraction = await response.awaitMessageComponent({
+					componentType: ComponentType.Button,
+					filter: (bi) => bi.user.id === interaction.user.id,
+					time: 60_000,
+				});
+			} catch {
+				await interaction.editReply({
+					content: `${headerLine}\n\n⏱️ Confirmation timed out after 60s. **Nothing was deleted.** Re-run the command to try again.`,
+					components: [],
+					allowedMentions: { parse: [] },
+				});
+				return;
+			}
+
+			if (buttonInteraction.customId === 'clan-admin-prune-cancel') {
+				await buttonInteraction.update({
+					content: `${headerLine}\n\n❌ Cancelled. **Nothing was deleted.**`,
+					components: [],
+					allowedMentions: { parse: [] },
+				});
+				return;
+			}
+
+			// Lock the buttons immediately so the deletion can't be triggered twice.
+			await buttonInteraction.update({
+				content: `${headerLine}\n\n🗑️ Deleting **${deletable.length}** role${deletable.length === 1 ? '' : 's'}… this can take a while for large batches. I'll report back when it's done.`,
+				components: [],
+				allowedMentions: { parse: [] },
+			});
+
+			// Step 6: delete, recording every outcome
+			deletionStarted = true;
+			const auditReason = `Leftover role cleanup by ${interaction.user.tag} via /clan-admin prune-leftover-roles`;
+
+			for (const row of deletable) {
+				try {
+					await interaction.guild.roles.delete(row.id, auditReason);
+					deleted.push(row);
+				} catch (error) {
+					const reason = error instanceof Error ? error.message : String(error);
+					failed.push({ reason, row });
+					this.container.logger.warn(
+						`${LogPrefix.CLAN} [${guildId}] prune-leftover-roles: failed to delete role ${row.id} (${row.name}): ${reason}`,
+					);
+				}
+			}
+
+			// Step 7: final report
+			const removedWearers = deleted.reduce((sum, row) => sum + row.memberCount, 0);
+			const resultLines = [
+				'## 🧹 Leftover role cleanup: done',
+				`Attempted **${deletable.length}** deletion${deletable.length === 1 ? '' : 's'}.`,
+				'',
+				`- ✅ **${deleted.length}** deleted`,
+				`- ❌ **${failed.length}** failed`,
+			];
+			if (blocked.length > 0) {
+				resultLines.push(`- 🔒 **${blocked.length}** skipped (above my highest role, never attempted)`);
+			}
+
+			if (removedWearers > 0) {
+				resultLines.push(
+					`- 👥 removed from **${removedWearers}** member assignment${removedWearers === 1 ? '' : 's'} in the process`,
+				);
+			}
+
+			if (failed.length > 0) {
+				resultLines.push('', '**Failures:**');
+				for (const entry of failed.slice(0, 10)) {
+					resultLines.push(`- <@&${entry.row.id}> (\`${entry.row.id}\`): ${entry.reason}`);
+				}
+
+				if (failed.length > 10) {
+					resultLines.push(`- …and **${failed.length - 10}** more (see the attached CSV).`);
+				}
+			}
+
+			resultLines.push('', '-# Full per-role outcome is in the attached CSV.');
+
+			const resultCsv = this.buildLeftoverCsv(guildId, rows, 'result', { blocked, deleted, failed });
+
+			await interaction.editReply({
+				content: resultLines.join('\n'),
+				files: [resultCsv],
+				components: [],
+				attachments: [],
+				allowedMentions: { parse: [] },
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this.container.logger.error(
+				`${LogPrefix.CLAN} [${guildId}] prune-leftover-roles crashed (mode=${mode}): ${error instanceof Error ? error.stack : message}`,
+			);
+
+			const crashLines = ['## 🧹 Leftover role cleanup: error', `❌ Something went wrong: \`${message}\``];
+			if (deletionStarted) {
+				crashLines.push(
+					'',
+					`This happened **during deletion**. Before the error: ✅ **${deleted.length}** deleted, ❌ **${failed.length}** failed. Deleted roles stay deleted. Re-run in dry-run mode to see what remains.`,
+				);
+			} else {
+				crashLines.push('', 'This happened **before any deletion**, so nothing was changed.');
+			}
+
+			crashLines.push('', '-# The full error (with stack trace) has been logged.');
+
+			await interaction
+				.editReply({ content: crashLines.join('\n'), components: [], allowedMentions: { parse: [] } })
+				.catch((editError) =>
+					this.container.logger.error(
+						`${LogPrefix.CLAN} [${guildId}] prune-leftover-roles: failed to report the error to the user: ${editError}`,
+					),
+				);
+		}
+	}
+
+	private buildLeftoverCsv(
+		guildId: string,
+		rows: LeftoverRoleRow[],
+		phase: 'dry-run' | 'pending' | 'result',
+		outcome?: {
+			blocked: LeftoverRoleRow[];
+			deleted: LeftoverRoleRow[];
+			failed: { reason: string; row: LeftoverRoleRow }[];
+		},
+	): AttachmentBuilder {
+		const deletedIds = new Set(outcome?.deleted.map((row) => row.id));
+		const blockedIds = new Set(outcome?.blocked.map((row) => row.id));
+		const failReasons = new Map(outcome?.failed.map((entry) => [entry.row.id, entry.reason]));
+
+		const statusFor = (row: LeftoverRoleRow): string => {
+			if (phase === 'result') {
+				if (deletedIds.has(row.id)) return 'deleted';
+				if (failReasons.has(row.id)) return `failed: ${failReasons.get(row.id)}`;
+				if (blockedIds.has(row.id)) return 'skipped-above-bot';
+				return 'not-processed';
+			}
+
+			return row.aboveBot ? 'would-skip-above-bot' : 'would-delete';
+		};
+
+		const csvHeader = 'roleId,roleName,memberCount,aboveBot,status';
+		const csvRows = rows.map((row) =>
+			[row.id, csvEscape(row.name), row.memberCount, row.aboveBot, csvEscape(statusFor(row))].join(','),
+		);
+
+		return new AttachmentBuilder(Buffer.from([csvHeader, ...csvRows].join('\n'), 'utf8'), {
+			name: `leftover-roles-${guildId}.csv`,
 		});
 	}
 
@@ -1276,6 +1661,24 @@ export class ClanAdminCommand extends Subcommand {
 					subcommand
 						.setName('reconcile')
 						.setDescription('Read-only report of leaked clan roles (clan deleted but role/entry survived)'),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('prune-leftover-roles')
+						.setDescription(
+							'Find & delete leftover custom/clan roles between the configured separators (dry-run by default)',
+						)
+						.addStringOption((option) =>
+							option
+								.setName('mode')
+								.setDescription(
+									'Dry run just reports; Execute shows the report then asks to confirm before deleting',
+								)
+								.addChoices(
+									{ name: 'Dry run (report only, default)', value: 'dry-run' },
+									{ name: 'Execute (report + confirm, then delete)', value: 'execute' },
+								),
+						),
 				)
 				.addSubcommand((subcommand) =>
 					subcommand
