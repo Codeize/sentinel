@@ -148,7 +148,7 @@ export class CustomCommandCommand extends Subcommand {
 			where: { guildId_trigger: { guildId: interaction.guildId, trigger } },
 		});
 
-		// Although unlikely, its' still possible the input would be a custom command not owned by the user's clan,
+		// Although unlikely, it's still possible the input would be a custom command not owned by the user's clan,
 		// if it even exists at all.
 		if (!existingCommand || existingCommand.clanCustomRoleId !== clan.customRoleId) {
 			await interaction.editReply({
@@ -222,13 +222,16 @@ export class CustomCommandCommand extends Subcommand {
 		}
 
 		const commands = await this.container.prisma.clanCustomCommand.findMany({
-			where: { guildId: interaction.guildId, clanCustomRoleId: clan.customRoleId },
+			where: {
+				guildId: interaction.guildId,
+				clanCustomRoleId: clan.customRoleId,
+				trigger: { contains: input },
+			},
 			orderBy: { trigger: 'asc' },
 			take: 25,
 		});
 
 		const options: ApplicationCommandOptionChoiceData[] = commands
-			.filter((command: ClanCustomCommand) => command.trigger.includes(input))
 			.slice(0, 25)
 			.map((command: ClanCustomCommand) => ({ name: command.trigger, value: command.trigger }));
 

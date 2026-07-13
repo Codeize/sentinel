@@ -4,6 +4,8 @@ import type { Message } from 'discord.js';
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
 import { LogPrefix } from '../../../lib/utils/logPrefix.js';
 
+const CUSTOM_COMMAND_TRIGGER = '!';
+
 @ApplyOptions<Listener.Options>({
 	event: Events.MessageCreate,
 })
@@ -14,11 +16,10 @@ export class ClanCustomCommands extends Listener {
 			return;
 		}
 
-		if (!message.channel.isTextBased()) return;
-		if (!message.channel.isSendable()) return;
+		if (!message.channel.isTextBased() || !message.channel.isSendable()) return;
 
 		const trigger = message.content.trim().split(/\s+/, 1)[0]?.toLowerCase();
-		if (!trigger?.startsWith('!')) {
+		if (!trigger?.startsWith(CUSTOM_COMMAND_TRIGGER)) {
 			return;
 		}
 
