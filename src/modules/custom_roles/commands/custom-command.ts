@@ -10,7 +10,8 @@ import { ClanManager } from '../../../lib/abilities/ClanManager.js';
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
 import { createErrorEmbed, createInfoEmbed } from '../../../lib/utils/createEmbed.js';
 
-const COMMAND_REGEX = /^!\S{1,31}$/;
+export const CUSTOM_COMMAND_TRIGGER = '!';
+const COMMAND_REGEX = /^\S{1,32}$/;
 
 export class CustomCommandCommand extends Subcommand {
 	public subcommandMappings: SubcommandMappingArray = [
@@ -34,18 +35,21 @@ export class CustomCommandCommand extends Subcommand {
 	public async setSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-		const trigger = interaction.options.getString('command', true).trim().toLowerCase();
+		const commandName = interaction.options.getString('command', true).trim().toLowerCase();
+		const triggerName =
+			commandName.startsWith(CUSTOM_COMMAND_TRIGGER) ? commandName.slice(CUSTOM_COMMAND_TRIGGER.length) : commandName;
+		const trigger = `${CUSTOM_COMMAND_TRIGGER}${triggerName}`;
 		const responseText = interaction.options.getString('output')?.trim() ?? null;
 		// Although we accept attachments, we just use their Discord CDN url in the DB,
 		// as that will always be available on-platform.
 		const media = interaction.options.getAttachment('media');
 		const mediaUrl = interaction.options.getString('media-url')?.trim() ?? null;
 
-		if (!COMMAND_REGEX.test(trigger)) {
+		if (!COMMAND_REGEX.test(triggerName)) {
 			await interaction.editReply({
 				embeds: [
 					createErrorEmbed(
-						'Custom commands must start with `!`, be 2-32 characters long, and not contain spaces.',
+						'Custom commands must be 1-32 characters long and not contain spaces.',
 					),
 				],
 			});
@@ -251,8 +255,8 @@ export class CustomCommandCommand extends Subcommand {
 						.addStringOption((option) =>
 							option
 								.setName('command')
-								.setDescription('The command trigger, such as !cat')
-								.setMinLength(2)
+								.setDescription('The command trigger, such as cat')
+								.setMinLength(1)
 								.setMaxLength(32)
 								.setRequired(true),
 						)

@@ -3,8 +3,7 @@ import { Events, Listener } from '@sapphire/framework';
 import type { Message } from 'discord.js';
 import { MemberAbilities } from '../../../lib/abilities/MemberAbilities.js';
 import { LogPrefix } from '../../../lib/utils/logPrefix.js';
-
-const CUSTOM_COMMAND_TRIGGER = '!';
+import { CUSTOM_COMMAND_TRIGGER } from '../commands/custom-command.js';
 
 @ApplyOptions<Listener.Options>({
 	event: Events.MessageCreate,
