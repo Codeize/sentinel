@@ -66,11 +66,10 @@ export class ClanCustomCommands extends Listener {
 			return;
 		}
 
-		const content = customCommand.responseText ?? undefined;
-		const mediaUrl = customCommand.responseMediaUrl ? [customCommand.responseMediaUrl] : undefined;
+		const content = [customCommand.responseText, customCommand.responseMediaUrl].filter(Boolean).join('\n');
 
 		try {
-			await message.channel.send({ content, files: mediaUrl });
+			await message.channel.send({ content });
 		} catch (error) {
 			this.container.logger.warn(`${LogPrefix.CLAN} Failed to send clan custom command response`, {
 				guildId: message.guildId,
@@ -79,16 +78,6 @@ export class ClanCustomCommands extends Listener {
 				trigger,
 				error,
 			});
-
-			if (!customCommand.responseMediaUrl) {
-				return;
-			}
-
-			const fallbackContent = [customCommand.responseText, customCommand.responseMediaUrl]
-				.filter(Boolean)
-				.join('\n');
-
-			await message.channel.send({ content: fallbackContent }).catch(() => null);
 		}
 	}
 }

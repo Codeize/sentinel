@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import type { ClanCustomCommand } from '@prisma/client';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import {
@@ -40,8 +41,6 @@ export class CustomCommandCommand extends Subcommand {
 			commandName.startsWith(CUSTOM_COMMAND_TRIGGER) ? commandName.slice(CUSTOM_COMMAND_TRIGGER.length) : commandName;
 		const trigger = `${CUSTOM_COMMAND_TRIGGER}${triggerName}`;
 		const responseText = interaction.options.getString('output')?.trim() ?? null;
-		// Although we accept attachments, we just use their Discord CDN url in the DB,
-		// as that will always be available on-platform.
 		const media = interaction.options.getAttachment('media');
 		const mediaUrl = interaction.options.getString('media-url')?.trim() ?? null;
 
@@ -108,6 +107,84 @@ export class CustomCommandCommand extends Subcommand {
 			return;
 		}
 
+		let responseMediaUrl = mediaUrl;
+
+		if (media) {
+			const premiumConfig = await this.container.prisma.premiumGuildRoleConfig.findUnique({
+				where: { guildId: interaction.guildId },
+			});
+
+			if (!premiumConfig?.customCommandMediaChannelId) {
+				await interaction.editReply({
+					embeds: [
+						createErrorEmbed(
+							'Custom command media uploads are not configured in this server.',
+						),
+					],
+				});
+				return;
+			}
+
+			const mediaChannel = await interaction.guild.channels
+				.fetch(premiumConfig.customCommandMediaChannelId)
+				.catch(() => null);
+
+			if (!mediaChannel?.isTextBased() || !mediaChannel.isSendable()) {
+				await interaction.editReply({
+					embeds: [
+						createErrorEmbed(
+							'The configured custom command media channel is missing or I cannot send messages there.',
+						),
+					],
+				});
+				return;
+			}
+
+			try {
+				const attachmentResponse = await fetch(media.url);
+
+				if (!attachmentResponse.ok) {
+					throw new Error(`Failed to fetch attachment: ${attachmentResponse.status}`);
+				}
+
+				const attachmentBuffer = Buffer.from(await attachmentResponse.arrayBuffer());
+				// Having some description of logging of the source of the custom media image is
+				// important, in cases where the media might be explicit/inappropriate or otherwise violate the Val server rules
+				const hostedMessage = await mediaChannel.send({
+					content: `-# <@&${clan.customRoleId}> \`${trigger}\``,
+					files: [{ attachment: attachmentBuffer, name: media.name }],
+					allowedMentions: { parse: [] },
+				});
+
+				// Should always be .first() since the user can only upload one attachment, and each time it'd overwrite the previous one
+				responseMediaUrl = hostedMessage.attachments.first()?.url ?? null;
+			} catch (error) {
+				this.container.logger.warn('Failed to create custom command with media attachment', {
+					guildId: interaction.guildId,
+					userId: interaction.user.id,
+					customRoleId: clan.customRoleId,
+					trigger,
+					error,
+				});
+
+				await interaction.editReply({
+					embeds: [
+						createErrorEmbed(
+							'Failed to upload that media to the configured custom command media channel.',
+						),
+					],
+				});
+				return;
+			}
+
+			if (!responseMediaUrl) {
+				await interaction.editReply({
+					embeds: [createErrorEmbed('Failed to retrieve the media URL after uploading the custom command media.')],
+				});
+				return;
+			}
+		}
+
 		const savedCommand = await this.container.prisma.clanCustomCommand.upsert({
 			where: { guildId_trigger: { guildId: interaction.guildId, trigger } },
 			create: {
@@ -115,12 +192,12 @@ export class CustomCommandCommand extends Subcommand {
 				clanCustomRoleId: clan.customRoleId,
 				trigger,
 				responseText,
-				responseMediaUrl: media?.url ?? mediaUrl,
+				responseMediaUrl,
 				createdByUserId: interaction.user.id,
 			},
 			update: {
 				responseText,
-				responseMediaUrl: media?.url ?? mediaUrl,
+				responseMediaUrl,
 				createdByUserId: interaction.user.id,
 			},
 		});
@@ -272,7 +349,7 @@ export class CustomCommandCommand extends Subcommand {
 						.addStringOption((option) =>
 							option
 								.setName('media-url')
-								.setDescription('Optional hosted media URL to send with the response')
+								.setDescription('Optional URL of media to send with the response')
 								.setMaxLength(2_048),
 						),
 				)

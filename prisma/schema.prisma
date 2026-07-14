@@ -212,6 +212,9 @@ model PremiumGuildRoleConfig {
   /// The channel in which clan invites should be sent
   clanInviteChannelId String?
 
+  /// The channel used to host custom command media attachments
+  customCommandMediaChannelId String?
+
   /// The channel in which the clan directory should be updated
   clanDirectoryChannelId String?
 
