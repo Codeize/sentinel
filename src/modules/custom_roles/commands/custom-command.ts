@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import type { ClanCustomCommand } from '@prisma/client';
 import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcommands';
 import {
@@ -147,12 +146,11 @@ export class CustomCommandCommand extends Subcommand {
 					throw new Error(`Failed to fetch attachment: ${attachmentResponse.status}`);
 				}
 
-				const attachmentBuffer = Buffer.from(await attachmentResponse.arrayBuffer());
 				// Having some description of logging of the source of the custom media image is
 				// important, in cases where the media might be explicit/inappropriate or otherwise violate the Val server rules
 				const hostedMessage = await mediaChannel.send({
 					content: `-# <@&${clan.customRoleId}> \`${trigger}\``,
-					files: [{ attachment: attachmentBuffer, name: media.name }],
+					files: [media.url],
 					allowedMentions: { parse: [] },
 				});
 
@@ -312,9 +310,10 @@ export class CustomCommandCommand extends Subcommand {
 			take: 25,
 		});
 
-		const options: ApplicationCommandOptionChoiceData[] = commands
-			.slice(0, 25)
-			.map((command: ClanCustomCommand) => ({ name: command.trigger, value: command.trigger }));
+		const options: ApplicationCommandOptionChoiceData[] = commands.map((command: ClanCustomCommand) => ({
+			name: command.trigger,
+			value: command.trigger,
+		}));
 
 		return interaction.respond(options);
 	}
