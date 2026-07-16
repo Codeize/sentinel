@@ -651,6 +651,20 @@ export class ClanManager {
 		}
 
 		try {
+			this.addBreadcrumb('Deleting clan custom commands from database');
+			await container.prisma.clanCustomCommand.deleteMany({
+				where: {
+					guildId: clan.guildId,
+					clanCustomRoleId: clan.customRoleId,
+				},
+			});
+			this.addBreadcrumb('Clan custom commands deleted from database');
+		} catch (error) {
+			this.addBreadcrumb('Failed to delete clan custom commands from database', { error: String(error) }, 'error');
+			this.captureError(error as Error, 'deleteClan: clanCustomCommand deleteMany failed');
+		}
+
+		try {
 			this.addBreadcrumb('Deleting clan from database');
 			await container.prisma.clan.delete({
 				where: { guildId_customRoleId: { guildId: clan.guildId, customRoleId: clan.customRoleId } },

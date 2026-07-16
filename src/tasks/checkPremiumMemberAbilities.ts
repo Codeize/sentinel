@@ -271,7 +271,36 @@ export class CheckPremiumMemberAbilities extends Task {
 			}
 		}
 
+		addBreadcrumb('Deleting clan custom commands for premium member', { guildId, userId, customRoleId });
+		try {
+			const deleted = await this.container.prisma.clanCustomCommand.deleteMany({
+				where: {
+					guildId,
+					createdByUserId: userId,
+					...(customRoleId ? { clanCustomRoleId: customRoleId } : {}),
+				},
+			});
+
+			addBreadcrumb('Clan custom commands deleted for premium member', {
+				guildId,
+				userId,
+				deleted: deleted.count,
+			});
+		} catch (error) {
+			this.container.logger.error(
+				`${LOG_PREFIX} [CLEANUP] Failed to delete clan custom commands for ${reason} user ${userId}:`,
+				error,
+			);
+			addBreadcrumb('Failed to delete clan custom commands', { error: String(error), guildId, userId }, 'error');
+			captureError(error as Error, 'cleanupPremiumMember: clanCustomCommand deleteMany failed', {
+				guildId,
+				userId,
+			});
+		}
+
 		// No clan to protect, so remove the premium member entry for good.
+
+		// 3. Delete premium member entry from database
 		addBreadcrumb('Deleting premium member from database', { guildId, userId });
 		try {
 			await this.container.prisma.premiumMember.delete({
@@ -446,6 +475,7 @@ export class CheckPremiumMemberAbilities extends Task {
 					const hasAnyAbility =
 						memberAbilities.hasAbility('canCreateClan') ||
 						memberAbilities.hasAbility('canCreateCustomRole') ||
+						memberAbilities.hasAbility('canCreateCustomCommand') ||
 						memberAbilities.hasAbility('canGiftLegend') ||
 						memberAbilities.hasAbility('areAbilitiesMultiGuild') ||
 						memberAbilities.hasAbility('canUploadCustomEmoji') ||
@@ -456,6 +486,7 @@ export class CheckPremiumMemberAbilities extends Task {
 						hasAnyAbility,
 						canCreateClan: memberAbilities.hasAbility('canCreateClan'),
 						canCreateCustomRole: memberAbilities.hasAbility('canCreateCustomRole'),
+						canCreateCustomCommand: memberAbilities.hasAbility('canCreateCustomCommand'),
 						canGiftLegend: memberAbilities.hasAbility('canGiftLegend'),
 						areAbilitiesMultiGuild: memberAbilities.hasAbility('areAbilitiesMultiGuild'),
 						canUploadCustomEmoji: memberAbilities.hasAbility('canUploadCustomEmoji'),
@@ -552,6 +583,36 @@ export class CheckPremiumMemberAbilities extends Task {
 									guildId: premiumMember.guildId,
 								});
 							}
+						}
+					}
+
+					if (!memberAbilities.hasAbility('canCreateCustomCommand')) {
+						const staleCustomCommandCount = await this.container.prisma.clanCustomCommand.count({
+							where: {
+								guildId: premiumMember.guildId,
+								createdByUserId: premiumMember.userId,
+								...(premiumMember.customRoleId ? { clanCustomRoleId: premiumMember.customRoleId } : {}),
+							},
+						});
+
+						if (staleCustomCommandCount > 0) {
+							this.container.logger.warn(
+								`${LOG_PREFIX} [STALE CUSTOM COMMANDS] User ${member.user.tag} (${premiumMember.userId}) in guild ${guild.name} (${guild.id}) has ${staleCustomCommandCount} custom command(s) but no canCreateCustomCommand ability.`,
+							);
+							addBreadcrumb(
+								'STALE CUSTOM COMMANDS detected',
+								{
+									userId: premiumMember.userId,
+									guildId: premiumMember.guildId,
+									count: staleCustomCommandCount,
+								},
+								'warning',
+							);
+							captureWarning(`Stale custom commands: ${member.user.tag} (${premiumMember.userId})`, {
+								userId: premiumMember.userId,
+								guildId: premiumMember.guildId,
+								count: staleCustomCommandCount,
+							});
 						}
 					}
 

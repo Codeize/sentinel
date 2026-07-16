@@ -8,6 +8,7 @@ export class RoleAbilitiesCalculator {
 	private premiumRoleIds: Record<RoleAbility, string[]> = {
 		canCreateClan: [],
 		canCreateCustomRole: [],
+		canCreateCustomCommand: [],
 		canGiftLegend: [],
 		areAbilitiesMultiGuild: [],
 		canUploadCustomEmoji: [],
@@ -30,6 +31,9 @@ export class RoleAbilitiesCalculator {
 			canGiftLegend: allPremiumRoles.filter((role) => role.canGiftLegend).map((result) => result.roleId),
 			canCreateCustomRole: allPremiumRoles
 				.filter((role) => role.canCreateCustomRole)
+				.map((result) => result.roleId),
+			canCreateCustomCommand: allPremiumRoles
+				.filter((role) => role.canCreateCustomCommand)
 				.map((result) => result.roleId),
 			canCreateClan: allPremiumRoles.filter((role) => role.canCreateClan).map((result) => result.roleId),
 			areAbilitiesMultiGuild: allPremiumRoles
@@ -62,6 +66,7 @@ export class RoleAbilitiesCalculator {
 		return {
 			canCreateClan: this.premiumRoleIds.canCreateClan.includes(roleId),
 			canCreateCustomRole: this.premiumRoleIds.canCreateCustomRole.includes(roleId),
+			canCreateCustomCommand: this.premiumRoleIds.canCreateCustomCommand.includes(roleId),
 			canGiftLegend: this.premiumRoleIds.canGiftLegend.includes(roleId),
 			areAbilitiesMultiGuild: this.premiumRoleIds.areAbilitiesMultiGuild.includes(roleId),
 			canUploadCustomEmoji: this.premiumRoleIds.canUploadCustomEmoji.includes(roleId),
@@ -73,6 +78,7 @@ export class RoleAbilitiesCalculator {
 export type RoleAbility =
 	| 'areAbilitiesMultiGuild'
 	| 'canCreateClan'
+	| 'canCreateCustomCommand'
 	| 'canCreateCustomRole'
 	| 'canGiftLegend'
 	| 'canPickSubscriberRole'
@@ -82,6 +88,7 @@ export type RoleAbilities = Record<RoleAbility, boolean>;
 export const RoleAbilityMap: Record<RoleAbility, string> = {
 	canCreateClan: 'Can create clan',
 	canCreateCustomRole: 'Can create custom role',
+	canCreateCustomCommand: 'Can create custom commands',
 	canGiftLegend: 'Can gift legend',
 	areAbilitiesMultiGuild: 'Can use abilities on multiple servers',
 	canUploadCustomEmoji: 'Can upload custom emojis',

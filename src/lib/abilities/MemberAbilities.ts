@@ -13,6 +13,7 @@ export class MemberAbilities {
 	private abilities: RoleAbilities = {
 		canCreateClan: false,
 		canCreateCustomRole: false,
+		canCreateCustomCommand: false,
 		canGiftLegend: false,
 		areAbilitiesMultiGuild: false,
 		canUploadCustomEmoji: false,
@@ -44,6 +45,9 @@ export class MemberAbilities {
 
 		this.abilities.canCreateClan = this.roleAbilities.getPremiumRoleIds('canCreateClan').some(hasRole);
 		this.abilities.canCreateCustomRole = this.roleAbilities.getPremiumRoleIds('canCreateCustomRole').some(hasRole);
+		this.abilities.canCreateCustomCommand = this.roleAbilities
+			.getPremiumRoleIds('canCreateCustomCommand')
+			.some(hasRole);
 		this.abilities.canGiftLegend = this.roleAbilities.getPremiumRoleIds('canGiftLegend').some(hasRole);
 		this.abilities.areAbilitiesMultiGuild = this.roleAbilities
 			.getPremiumRoleIds('areAbilitiesMultiGuild')

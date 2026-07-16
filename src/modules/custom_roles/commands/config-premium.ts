@@ -43,6 +43,11 @@ export class ConfigPremiumCommand extends Subcommand {
 			chatInputRun: 'setClanInvitesChannelSubcommand',
 		},
 		{
+			type: 'method',
+			name: 'set-custom-command-media-channel',
+			chatInputRun: 'setCustomCommandMediaChannelSubcommand',
+		},
+		{
 			type: 'group',
 			name: 'role-abilities',
 			entries: [
@@ -178,6 +183,11 @@ export class ConfigPremiumCommand extends Subcommand {
 				interaction.guild.channels.resolve(premiumConfig.clanInviteChannelId)
 			:	null;
 
+		const customCommandMediaChannel =
+			premiumConfig?.customCommandMediaChannelId ?
+				interaction.guild.channels.resolve(premiumConfig.customCommandMediaChannelId)
+			:	null;
+
 		const topSeparator =
 			premiumConfig?.topSeparatorRoleId ?
 				interaction.guild.roles.resolve(premiumConfig.topSeparatorRoleId)
@@ -194,6 +204,13 @@ export class ConfigPremiumCommand extends Subcommand {
 			{
 				name: 'Clan Invite Channel',
 				value: clanInviteChannel ? `<#${clanInviteChannel.id}> (${clanInviteChannel.id})` : null,
+			},
+			{
+				name: 'Custom Command Media Channel',
+				value:
+					customCommandMediaChannel ?
+						`<#${customCommandMediaChannel.id}> (${customCommandMediaChannel.id})`
+					:	null,
 			},
 			{
 				name: 'Cleanup Top Separator',
@@ -386,6 +403,68 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		await interaction.reply({
 			embeds: [createInfoEmbed(`Set the clan invites channel to ${newRepresentation}`)],
+			flags: MessageFlags.Ephemeral,
+		});
+	}
+
+	public async setCustomCommandMediaChannelSubcommand(
+		interaction: Subcommand.ChatInputCommandInteraction<'cached'>,
+	) {
+		const channel = interaction.options.getChannel('channel', true);
+
+		if (!channel || channel.type !== ChannelType.GuildText) {
+			await interaction.reply({
+				embeds: [createErrorEmbed('No channel or invalid channel provided.')],
+				flags: MessageFlags.Ephemeral,
+			});
+
+			return;
+		}
+
+		const me = await interaction.guild.members.fetch(this.container.client.user!.id);
+		const permissions = channel.permissionsFor(me);
+
+		if (
+			!permissions.has(PermissionFlagsBits.ViewChannel) ||
+			!permissions.has(PermissionFlagsBits.SendMessages) ||
+			!permissions.has(PermissionFlagsBits.AttachFiles)
+		) {
+			await interaction.reply({
+				embeds: [
+					createErrorEmbed(
+						`I need View Channel, Send Messages, and Attach Files permissions in <#${channel.id}>.`,
+					),
+				],
+				flags: MessageFlags.Ephemeral,
+			});
+
+			return;
+		}
+
+		const existingPremiumConfig = await this.container.prisma.premiumGuildRoleConfig.findFirst({
+			where: { guildId: interaction.guildId },
+		});
+
+		const previousChannel =
+			existingPremiumConfig?.customCommandMediaChannelId ?
+				interaction.guild.channels.resolve(existingPremiumConfig.customCommandMediaChannelId)
+			:	null;
+
+		const previousRepresentation = previousChannel ? `<#${previousChannel.id}> (${previousChannel.id})` : 'none';
+		const newRepresentation = `<#${channel.id}> (${channel.id})`;
+
+		await this.container.prisma.premiumGuildRoleConfig.upsert({
+			where: { guildId: interaction.guildId },
+			create: { guildId: interaction.guildId, customCommandMediaChannelId: channel.id },
+			update: { customCommandMediaChannelId: channel.id },
+		});
+
+		await interaction.reply({
+			embeds: [
+				createInfoEmbed(
+					`Set the custom command media channel from ${previousRepresentation} to ${newRepresentation}`,
+				),
+			],
 			flags: MessageFlags.Ephemeral,
 		});
 	}
@@ -833,6 +912,18 @@ export class ConfigPremiumCommand extends Subcommand {
 								.setRequired(true),
 						),
 				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('set-custom-command-media-channel')
+						.setDescription('Sets the channel used to host custom command media')
+						.addChannelOption((channel) =>
+							channel
+								.setName('channel')
+								.setDescription('The channel in which to host custom command media')
+								.addChannelTypes(ChannelType.GuildText)
+								.setRequired(true),
+						),
+				)
 				.addSubcommandGroup((role) =>
 					role
 						.setName('role-abilities')
@@ -857,6 +948,7 @@ export class ConfigPremiumCommand extends Subcommand {
 										.addChoices(
 											{ name: 'Create a clan', value: 'canCreateClan' },
 											{ name: 'Create a custom role', value: 'canCreateCustomRole' },
+											{ name: 'Create a custom command', value: 'canCreateCustomCommand' },
 											{ name: 'Gift Legend', value: 'canGiftLegend' },
 											{
 												name: 'Use abilities on multiple servers',
@@ -885,6 +977,7 @@ export class ConfigPremiumCommand extends Subcommand {
 										.addChoices(
 											{ name: 'Create a clan', value: 'canCreateClan' },
 											{ name: 'Create a custom role', value: 'canCreateCustomRole' },
+											{ name: 'Create a custom command', value: 'canCreateCustomCommand' },
 											{ name: 'Gift Legend', value: 'canGiftLegend' },
 											{
 												name: 'Use abilities on multiple servers',

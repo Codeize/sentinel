@@ -47,6 +47,9 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 			!newMemberAbilities.hasAbility('canCreateCustomRole');
 		const canNoLongerGiftLegend =
 			oldMemberAbilities.hasAbility('canGiftLegend') && !newMemberAbilities.hasAbility('canGiftLegend');
+		const canNoLongerCreateCustomCommand =
+			oldMemberAbilities.hasAbility('canCreateCustomCommand') &&
+			!newMemberAbilities.hasAbility('canCreateCustomCommand');
 		const canNoLongerPickSubscriberRole =
 			oldMemberAbilities.hasAbility('canPickSubscriberRole') &&
 			!newMemberAbilities.hasAbility('canPickSubscriberRole');
@@ -60,6 +63,7 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 				canNoLongerCreateClan,
 				canNoLongerCreateCustomRole,
 				canNoLongerGiftLegend,
+				canNoLongerCreateCustomCommand,
 				canNoLongerPickSubscriberRole,
 				hasClan: Boolean(clan),
 			},
