@@ -69,7 +69,7 @@ export class ClanCustomCommands extends Listener {
 		const content = [customCommand.responseText, customCommand.responseMediaUrl].filter(Boolean).join('\n');
 
 		try {
-			await message.channel.send({ content });
+			await message.channel.send({ content, allowedMentions: { parse: [] } });
 		} catch (error) {
 			this.container.logger.warn(`${LogPrefix.CLAN} Failed to send clan custom command response`, {
 				guildId: message.guildId,
