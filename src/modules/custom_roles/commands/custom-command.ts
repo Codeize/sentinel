@@ -3,6 +3,7 @@ import { Subcommand, type SubcommandMappingArray } from '@sapphire/plugin-subcom
 import {
 	type ApplicationCommandOptionChoiceData,
 	type AutocompleteInteraction,
+	EmbedBuilder,
 	InteractionContextType,
 	MessageFlags,
 } from 'discord.js';
@@ -37,7 +38,9 @@ export class CustomCommandCommand extends Subcommand {
 
 		const commandName = interaction.options.getString('command', true).trim().toLowerCase();
 		const triggerName =
-			commandName.startsWith(CUSTOM_COMMAND_TRIGGER) ? commandName.slice(CUSTOM_COMMAND_TRIGGER.length) : commandName;
+			commandName.startsWith(CUSTOM_COMMAND_TRIGGER) ?
+				commandName.slice(CUSTOM_COMMAND_TRIGGER.length)
+			:	commandName;
 		const trigger = `${CUSTOM_COMMAND_TRIGGER}${triggerName}`;
 		const responseText = interaction.options.getString('output')?.trim() ?? null;
 		const media = interaction.options.getAttachment('media');
@@ -45,11 +48,7 @@ export class CustomCommandCommand extends Subcommand {
 
 		if (!COMMAND_REGEX.test(triggerName)) {
 			await interaction.editReply({
-				embeds: [
-					createErrorEmbed(
-						'Custom commands must be 1-32 characters long and not contain spaces.',
-					),
-				],
+				embeds: [createErrorEmbed('Custom commands must be 1-32 characters long and not contain spaces.')],
 			});
 			return;
 		}
@@ -106,81 +105,85 @@ export class CustomCommandCommand extends Subcommand {
 			return;
 		}
 
+		const premiumConfig = await this.container.prisma.premiumGuildRoleConfig.findUnique({
+			where: { guildId: interaction.guildId },
+		});
+
+		if (!premiumConfig?.customCommandLogChannelId) {
+			await interaction.editReply({
+				embeds: [createErrorEmbed('Custom command logging is not configured in this server.')],
+			});
+			return;
+		}
+
+		const logChannel = await interaction.guild.channels
+			.fetch(premiumConfig.customCommandLogChannelId)
+			.catch(() => null);
+
+		if (!logChannel?.isTextBased() || !logChannel.isSendable()) {
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						'The configured custom command log channel is missing or I cannot send messages there.',
+					),
+				],
+			});
+			return;
+		}
+
 		let responseMediaUrl = mediaUrl;
 
-		if (media) {
-			const premiumConfig = await this.container.prisma.premiumGuildRoleConfig.findUnique({
-				where: { guildId: interaction.guildId },
+		try {
+			const logEmbed = new EmbedBuilder()
+				.setTitle(existingCommand ? 'Custom command updated' : 'Custom command created')
+				.setDescription(responseText ?? '*No text output*')
+				.addFields(
+					{ name: 'Command', value: `\`${trigger}\``, inline: true },
+					{ name: 'Clan', value: `<@&${clan.customRoleId}>`, inline: true },
+					{ name: 'Changed by', value: `<@${interaction.user.id}>`, inline: true },
+				)
+				.setTimestamp()
+				.setColor(existingCommand ? "Orange" : "Green");
+
+			if (mediaUrl) {
+				logEmbed.addFields({ name: 'Media URL', value: mediaUrl });
+			}
+
+			const hostedMessage = await logChannel.send({
+				embeds: [logEmbed],
+				files: media ? [media.url] : [],
+				allowedMentions: { parse: [] },
 			});
 
-			if (!premiumConfig?.customCommandMediaChannelId) {
-				await interaction.editReply({
-					embeds: [
-						createErrorEmbed(
-							'Custom command media uploads are not configured in this server.',
-						),
-					],
-				});
-				return;
-			}
-
-			const mediaChannel = await interaction.guild.channels
-				.fetch(premiumConfig.customCommandMediaChannelId)
-				.catch(() => null);
-
-			if (!mediaChannel?.isTextBased() || !mediaChannel.isSendable()) {
-				await interaction.editReply({
-					embeds: [
-						createErrorEmbed(
-							'The configured custom command media channel is missing or I cannot send messages there.',
-						),
-					],
-				});
-				return;
-			}
-
-			try {
-				const attachmentResponse = await fetch(media.url);
-
-				if (!attachmentResponse.ok) {
-					throw new Error(`Failed to fetch attachment: ${attachmentResponse.status}`);
-				}
-
-				// Having some description of logging of the source of the custom media image is
-				// important, in cases where the media might be explicit/inappropriate or otherwise violate the Val server rules
-				const hostedMessage = await mediaChannel.send({
-					content: `-# <@&${clan.customRoleId}> \`${trigger}\``,
-					files: [media.url],
-					allowedMentions: { parse: [] },
-				});
-
-				// Should always be .first() since the user can only upload one attachment, and each time it'd overwrite the previous one
+			if (media) {
 				responseMediaUrl = hostedMessage.attachments.first()?.url ?? null;
-			} catch (error) {
-				this.container.logger.warn('Failed to create custom command with media attachment', {
-					guildId: interaction.guildId,
-					userId: interaction.user.id,
-					customRoleId: clan.customRoleId,
-					trigger,
-					error,
-				});
-
-				await interaction.editReply({
-					embeds: [
-						createErrorEmbed(
-							'Failed to upload that media to the configured custom command media channel.',
-						),
-					],
-				});
-				return;
 			}
+		} catch (error) {
+			this.container.logger.warn('Failed to log custom command change', {
+				guildId: interaction.guildId,
+				userId: interaction.user.id,
+				customRoleId: clan.customRoleId,
+				trigger,
+				error,
+			});
 
-			if (!responseMediaUrl) {
-				await interaction.editReply({
-					embeds: [createErrorEmbed('Failed to retrieve the media URL after uploading the custom command media.')],
-				});
-				return;
-			}
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						'Failed to log the custom command change in the configured custom command log channel.',
+					),
+				],
+			});
+			return;
+		}
+
+		if (media && !responseMediaUrl) {
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed('Failed to retrieve the media URL after uploading the custom command media.'),
+				],
+			});
+			return;
 		}
 
 		const savedCommand = await this.container.prisma.clanCustomCommand.upsert({
@@ -236,6 +239,53 @@ export class CustomCommandCommand extends Subcommand {
 			return;
 		}
 
+		const premiumConfig = await this.container.prisma.premiumGuildRoleConfig.findUnique({
+			where: { guildId: interaction.guildId },
+		});
+		const logChannel =
+			premiumConfig?.customCommandLogChannelId ?
+				await interaction.guild.channels.fetch(premiumConfig.customCommandLogChannelId).catch(() => null)
+			:	null;
+
+		if (!logChannel?.isTextBased() || !logChannel.isSendable()) {
+			await interaction.editReply({
+				embeds: [
+					createErrorEmbed(
+						'The configured custom command log channel is missing or I cannot send messages there.',
+					),
+				],
+			});
+			return;
+		}
+
+		try {
+			await logChannel.send({
+				embeds: [
+					new EmbedBuilder()
+						.setTitle('Custom command deleted')
+						.addFields(
+							{ name: 'Command', value: `\`${trigger}\``, inline: true },
+							{ name: 'Clan', value: `<@&${existingCommand.clanCustomRoleId}>`, inline: true },
+							{ name: 'Deleted by', value: `<@${interaction.user.id}>`, inline: true },
+						)
+						.setTimestamp(),
+				],
+				allowedMentions: { parse: [] },
+			});
+		} catch (error) {
+			this.container.logger.warn('Failed to log custom command deletion', {
+				guildId: interaction.guildId,
+				userId: interaction.user.id,
+				commandId: existingCommand.id,
+				trigger,
+				error,
+			});
+			await interaction.editReply({
+				embeds: [createErrorEmbed('Failed to log the custom command deletion.')],
+			});
+			return;
+		}
+
 		await this.container.prisma.clanCustomCommand.delete({
 			where: { guildId_trigger: { guildId: interaction.guildId, trigger } },
 		});
@@ -270,8 +320,6 @@ export class CustomCommandCommand extends Subcommand {
 			return;
 		}
 
-		// We opt to just list the command trigger and type of response it gives, rather than
-		// the entire output, as that could be quite a large message otherwise.
 		const lines = commands.map((command: ClanCustomCommand) => {
 			const outputTypes = [command.responseText ? 'text' : null, command.responseMediaUrl ? 'media' : null]
 				.filter(Boolean)

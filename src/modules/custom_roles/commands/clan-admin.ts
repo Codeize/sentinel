@@ -10,6 +10,7 @@ import {
 	ButtonStyle,
 	ComponentType,
 	ContainerBuilder,
+	EmbedBuilder,
 	InteractionContextType,
 	type Message,
 	MessageFlags,
@@ -86,6 +87,11 @@ export class ClanAdminCommand extends Subcommand {
 			type: 'method',
 			name: 'delete',
 			chatInputRun: 'deleteSubcommand',
+		},
+		{
+			type: 'method',
+			name: 'delete-custom-command',
+			chatInputRun: 'deleteCustomCommandSubcommand',
 		},
 		{
 			type: 'method',
@@ -838,6 +844,24 @@ export class ClanAdminCommand extends Subcommand {
 	public override async autocompleteRun(interaction: AutocompleteInteraction<'cached'>) {
 		const focusedOption = interaction.options.getFocused(true);
 
+		if (interaction.options.getSubcommand(false) === 'delete-custom-command' && focusedOption.name === 'command') {
+			const commands = await this.container.prisma.clanCustomCommand.findMany({
+				where: {
+					guildId: interaction.guildId,
+					trigger: { contains: focusedOption.value.toLowerCase() },
+				},
+				orderBy: { trigger: 'asc' },
+				take: 25,
+			});
+
+			return interaction.respond(
+				commands.map((command) => ({
+					name: command.trigger,
+					value: command.trigger,
+				})),
+			);
+		}
+
 		// The history subcommand sources its clan list from the history table (not live clans) so that
 		// deleted clans remain selectable.
 		if (interaction.options.getSubcommand(false) === 'history' && focusedOption.name === 'clan') {
@@ -891,6 +915,72 @@ export class ClanAdminCommand extends Subcommand {
 		}
 
 		return interaction.respond(choices);
+	}
+
+	public async deleteCustomCommandSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+		const trigger = interaction.options.getString('command', true).trim().toLowerCase();
+		const existingCommand = await this.container.prisma.clanCustomCommand.findUnique({
+			where: { guildId_trigger: { guildId: interaction.guildId, trigger } },
+		});
+
+		if (!existingCommand) {
+			await this.replyWithComponents(interaction, [this.errorMessage('That custom command does not exist.')]);
+			return;
+		}
+
+		const premiumConfig = await this.container.prisma.premiumGuildRoleConfig.findUnique({
+			where: { guildId: interaction.guildId },
+		});
+		const logChannel =
+			premiumConfig?.customCommandLogChannelId ?
+				await interaction.guild.channels.fetch(premiumConfig.customCommandLogChannelId).catch(() => null)
+			:	null;
+
+		if (!logChannel?.isTextBased() || !logChannel.isSendable()) {
+			await this.replyWithComponents(interaction, [
+				this.errorMessage(
+					'The configured custom command log channel is missing or I cannot send messages there.',
+				),
+			]);
+			return;
+		}
+
+		try {
+			await logChannel.send({
+				embeds: [
+					new EmbedBuilder()
+						.setTitle('Custom command deleted by admin')
+						.addFields(
+							{ name: 'Command', value: `\`${trigger}\``, inline: true },
+							{ name: 'Clan', value: `<@&${existingCommand.clanCustomRoleId}>`, inline: true },
+							{ name: 'Admin', value: `<@${interaction.user.id}>`, inline: true },
+						)
+						.setTimestamp()
+						.setColor("DarkRed"),
+				],
+				allowedMentions: { parse: [] },
+			});
+		} catch (error) {
+			this.container.logger.warn(`${LogPrefix.CLAN} Failed to log admin custom command deletion`, {
+				guildId: interaction.guildId,
+				userId: interaction.user.id,
+				commandId: existingCommand.id,
+				trigger,
+				error,
+			});
+			await this.replyWithComponents(interaction, [
+				this.errorMessage('Failed to log the custom command deletion.'),
+			]);
+			return;
+		}
+
+		await this.container.prisma.clanCustomCommand.delete({
+			where: { guildId_trigger: { guildId: interaction.guildId, trigger } },
+		});
+
+		await this.replyWithComponents(interaction, [this.successMessage(`Deleted custom command \`${trigger}\`.`)]);
 	}
 
 	public async historySubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
@@ -1630,6 +1720,18 @@ export class ClanAdminCommand extends Subcommand {
 						.setDescription('Force delete a clan')
 						.addRoleOption((option) =>
 							option.setName('clan').setDescription('The clan role to delete').setRequired(true),
+						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName('delete-custom-command')
+						.setDescription('Delete any clan custom command')
+						.addStringOption((option) =>
+							option
+								.setName('command')
+								.setDescription('The custom command to delete')
+								.setRequired(true)
+								.setAutocomplete(true),
 						),
 				)
 				.addSubcommand((subcommand) =>
