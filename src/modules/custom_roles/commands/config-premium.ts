@@ -44,8 +44,8 @@ export class ConfigPremiumCommand extends Subcommand {
 		},
 		{
 			type: 'method',
-			name: 'set-custom-command-media-channel',
-			chatInputRun: 'setCustomCommandMediaChannelSubcommand',
+			name: 'set-custom-command-log-channel',
+			chatInputRun: 'setCustomCommandLogChannelSubcommand',
 		},
 		{
 			type: 'group',
@@ -183,9 +183,9 @@ export class ConfigPremiumCommand extends Subcommand {
 				interaction.guild.channels.resolve(premiumConfig.clanInviteChannelId)
 			:	null;
 
-		const customCommandMediaChannel =
-			premiumConfig?.customCommandMediaChannelId ?
-				interaction.guild.channels.resolve(premiumConfig.customCommandMediaChannelId)
+		const customCommandLogChannel =
+			premiumConfig?.customCommandLogChannelId ?
+				interaction.guild.channels.resolve(premiumConfig.customCommandLogChannelId)
 			:	null;
 
 		const topSeparator =
@@ -206,11 +206,9 @@ export class ConfigPremiumCommand extends Subcommand {
 				value: clanInviteChannel ? `<#${clanInviteChannel.id}> (${clanInviteChannel.id})` : null,
 			},
 			{
-				name: 'Custom Command Media Channel',
+				name: 'Custom Command Log Channel',
 				value:
-					customCommandMediaChannel ?
-						`<#${customCommandMediaChannel.id}> (${customCommandMediaChannel.id})`
-					:	null,
+					customCommandLogChannel ? `<#${customCommandLogChannel.id}> (${customCommandLogChannel.id})` : null,
 			},
 			{
 				name: 'Cleanup Top Separator',
@@ -407,9 +405,7 @@ export class ConfigPremiumCommand extends Subcommand {
 		});
 	}
 
-	public async setCustomCommandMediaChannelSubcommand(
-		interaction: Subcommand.ChatInputCommandInteraction<'cached'>,
-	) {
+	public async setCustomCommandLogChannelSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		const channel = interaction.options.getChannel('channel', true);
 
 		if (!channel || channel.type !== ChannelType.GuildText) {
@@ -446,8 +442,8 @@ export class ConfigPremiumCommand extends Subcommand {
 		});
 
 		const previousChannel =
-			existingPremiumConfig?.customCommandMediaChannelId ?
-				interaction.guild.channels.resolve(existingPremiumConfig.customCommandMediaChannelId)
+			existingPremiumConfig?.customCommandLogChannelId ?
+				interaction.guild.channels.resolve(existingPremiumConfig.customCommandLogChannelId)
 			:	null;
 
 		const previousRepresentation = previousChannel ? `<#${previousChannel.id}> (${previousChannel.id})` : 'none';
@@ -455,14 +451,14 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		await this.container.prisma.premiumGuildRoleConfig.upsert({
 			where: { guildId: interaction.guildId },
-			create: { guildId: interaction.guildId, customCommandMediaChannelId: channel.id },
-			update: { customCommandMediaChannelId: channel.id },
+			create: { guildId: interaction.guildId, customCommandLogChannelId: channel.id },
+			update: { customCommandLogChannelId: channel.id },
 		});
 
 		await interaction.reply({
 			embeds: [
 				createInfoEmbed(
-					`Set the custom command media channel from ${previousRepresentation} to ${newRepresentation}`,
+					`Set the custom command log channel from ${previousRepresentation} to ${newRepresentation}`,
 				),
 			],
 			flags: MessageFlags.Ephemeral,
@@ -914,12 +910,12 @@ export class ConfigPremiumCommand extends Subcommand {
 				)
 				.addSubcommand((subcommand) =>
 					subcommand
-						.setName('set-custom-command-media-channel')
-						.setDescription('Sets the channel used to host custom command media')
+						.setName('set-custom-command-log-channel')
+						.setDescription('Sets the channel used to log custom command changes and host media')
 						.addChannelOption((channel) =>
 							channel
 								.setName('channel')
-								.setDescription('The channel in which to host custom command media')
+								.setDescription('The channel in which to log custom command changes')
 								.addChannelTypes(ChannelType.GuildText)
 								.setRequired(true),
 						),

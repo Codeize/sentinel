@@ -660,7 +660,11 @@ export class ClanManager {
 			});
 			this.addBreadcrumb('Clan custom commands deleted from database');
 		} catch (error) {
-			this.addBreadcrumb('Failed to delete clan custom commands from database', { error: String(error) }, 'error');
+			this.addBreadcrumb(
+				'Failed to delete clan custom commands from database',
+				{ error: String(error) },
+				'error',
+			);
 			this.captureError(error as Error, 'deleteClan: clanCustomCommand deleteMany failed');
 		}
 
