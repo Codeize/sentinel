@@ -122,6 +122,8 @@ const disbots = new Disbots({
 
 container.disbots = disbots;
 await disbots.start();
+// Subscribes to Sapphire's error events, wraps every piece so breadcrumbs have
+// a unit to live in, and installs the REST hook for latency and rate limits.
 instrumentSapphire(client, disbots, {
 	onReady: ({ pieces, methods }) => client.logger.info(`Disbots instrumented ${pieces} pieces (${methods} methods)`),
 });
