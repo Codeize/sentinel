@@ -206,8 +206,11 @@ model PremiumGuildRoleConfig {
   /// The role that can be gifted by premium members
   legendRoleId String?
 
-  /// The category in which the clan channels should be created
-  clanCategoryId String?
+  /// The categories in which the clan channels should be created, filled in visual order (topmost first)
+  clanCategoryIds String[] @default([])
+
+  /// The channel in which clan infrastructure alerts (category overflow, channel limits) should be sent
+  clanAlertChannelId String?
 
   /// The channel in which clan invites should be sent
   clanInviteChannelId String?

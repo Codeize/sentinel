@@ -1,7 +1,7 @@
 import type { PremiumMember } from '@prisma/client';
 import { Duration } from '@sapphire/time-utilities';
 import * as Sentry from '@sentry/node';
-import { ClanManager } from '../lib/abilities/ClanManager.js';
+import { ClanManager, ORPHAN_GRACE_PERIOD } from '../lib/abilities/ClanManager.js';
 import { MemberAbilities } from '../lib/abilities/MemberAbilities.js';
 import { deleteGiftedRole, restoreGiftedRole } from '../lib/abilities/legendGift.js';
 import { Task, type TaskRunData } from '../lib/schedule/tasks/Task.js';
@@ -801,7 +801,7 @@ export class CheckPremiumMemberAbilities extends Task {
 								customRoleId: clan.customRoleId,
 							});
 
-							const deletionDate = new Duration('1 week').fromNow;
+							const deletionDate = new Duration(ORPHAN_GRACE_PERIOD).fromNow;
 							const deletionTask = await this.container.client.schedule.add(
 								'deleteOrphanClan',
 								deletionDate,
@@ -820,7 +820,7 @@ export class CheckPremiumMemberAbilities extends Task {
 
 							orphanedClansFixed++;
 							this.container.logger.info(
-								`${LOG_PREFIX} [FIXED] Scheduled orphaned clan ${clan.customRoleId} in guild ${clan.guildId} for deletion in 1 week (task ${deletionTask.id})`,
+								`${LOG_PREFIX} [FIXED] Scheduled orphaned clan ${clan.customRoleId} in guild ${clan.guildId} for deletion in ${ORPHAN_GRACE_PERIOD} (task ${deletionTask.id})`,
 							);
 							addBreadcrumb('Orphaned clan scheduled for deletion', {
 								customRoleId: clan.customRoleId,

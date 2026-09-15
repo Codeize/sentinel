@@ -30,6 +30,7 @@ import {
 	ClanMemberRemoveStatus,
 	ClanPermissionEditStatus,
 	ClanPermissionEditTarget,
+	ORPHAN_GRACE_PERIOD,
 } from '../../../lib/abilities/ClanManager.js';
 import { recordClanEvent } from '../../../lib/utils/clanHistory.js';
 import { LogPrefix } from '../../../lib/utils/logPrefix.js';
@@ -683,7 +684,7 @@ export class ClanAdminCommand extends Subcommand {
 
 		await this.replyWithComponents(interaction, [
 			this.successMessage(
-				`The clan **${clanRole.name}** has been marked as orphaned and will be automatically deleted in 1 week.`,
+				`The clan **${clanRole.name}** has been marked as orphaned and will be automatically deleted in ${ORPHAN_GRACE_PERIOD}.`,
 			),
 		]);
 	}
@@ -958,7 +959,7 @@ export class ClanAdminCommand extends Subcommand {
 							{ name: 'Admin', value: `<@${interaction.user.id}>`, inline: true },
 						)
 						.setTimestamp()
-						.setColor("DarkRed"),
+						.setColor('DarkRed'),
 				],
 				allowedMentions: { parse: [] },
 			});
@@ -1737,7 +1738,7 @@ export class ClanAdminCommand extends Subcommand {
 				.addSubcommand((subcommand) =>
 					subcommand
 						.setName('orphan')
-						.setDescription('Mark a clan as orphaned (schedules deletion in 1 week)')
+						.setDescription(`Mark a clan as orphaned (schedules deletion in ${ORPHAN_GRACE_PERIOD})`)
 						.addRoleOption((option) =>
 							option
 								.setName('clan')

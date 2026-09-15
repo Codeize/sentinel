@@ -140,7 +140,7 @@ export class PremiumUnsubscribe extends Listener<typeof Events.GuildMemberUpdate
 			}
 		}
 
-		// Runs for clan owners too - the orphan flow only revokes the gift a week later (if at all)
+		// Runs for clan owners too - the orphan flow only revokes the gift after the grace period (if at all)
 		if (premiumMember && canNoLongerGiftLegend) {
 			Sentry.addBreadcrumb({
 				category: 'clan',

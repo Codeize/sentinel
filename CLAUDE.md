@@ -295,6 +295,17 @@ The clan system allows premium members to create clans with:
 
 **Icon Caching**: Clan role icons are cached in `ClanEmojiCache` to track icon hash changes. Application emojis are only re-uploaded when the icon actually changes, reducing unnecessary API calls and improving performance.
 
+**Clan Categories**: A guild holds a list of them in `PremiumGuildRoleConfig.clanCategoryIds`, managed with `/config-premium clan-categories list|add|remove`. `ClanManager.resolveClanCategory()` fills them in visual order (topmost first) and creates a new one when they are all full:
+
+-   **Ordering** comes from discord.js' computed `GuildChannel#position`, which already applies Discord's own rules, breaking ties on equal raw positions by snowflake ascending. Never sort on `rawPosition` — reordering the categories in Discord is the only intended way to change fill priority, so no separate ordering config exists.
+-   **Overflow** clones the bottom-most category via `clone()`, which carries the permission overwrites over. This matters: `createClanChannel` calls `lockPermissions()`, so a clan channel inherits its parent category's overwrites. Never create the overflow category from scratch. `clone()` also copies the source's raw position, which keeps the new category adjacent to the others.
+-   **Channel limits** are handled reactively only. Do not block on a hardcoded guild channel cap: these servers may have a raised one, and Discord refusing the create (`MaximumNumberOfGuildChannelsReached`) is the only authority. `GUILD_CHANNEL_WARNING_THRESHOLD` exists purely to advise staff.
+-   **Alerts** go to `PremiumGuildRoleConfig.clanAlertChannelId` via `lib/utils/clanAlerts.ts`, plus the logger and Sentry.
+-   **Concurrency** is handled by `withGuildLock` (`lib/utils/guildLock.ts`), so two simultaneous clan creations cannot each create a category. `createClan` resolves the category once and passes it down to `createClanChannel`; resolving in both would clone twice.
+-   Configured IDs that no longer resolve are pruned automatically, but only when the guild itself resolved — otherwise an uncached guild would wipe the config.
+
+**Orphan Grace Period**: `ORPHAN_GRACE_PERIOD` in `ClanManager` is the single source of truth, used by both `makeClanOrphan` and `checkPremiumMemberAbilities` as well as the user-facing strings. Changing it only affects new orphans; deletion tasks already in the `schedules` table keep their original date, and rewriting them retroactively can push a date into the past and delete clans immediately.
+
 ### Vote Kick System
 
 Democratic voice channel moderation:

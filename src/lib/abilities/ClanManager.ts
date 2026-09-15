@@ -5,13 +5,36 @@ import * as Sentry from '@sentry/node';
 import { ChannelType, OverwriteType, RESTJSONErrorCodes } from 'discord-api-types/v10';
 import type { CategoryChannel, Guild, GuildMember, NonThreadGuildBasedChannel, Role, TextChannel } from 'discord.js';
 import { Collection, DiscordAPIError } from 'discord.js';
+import { sendClanAlert } from '../utils/clanAlerts.js';
 import { recordClanEvent } from '../utils/clanHistory.js';
+import { withGuildLock } from '../utils/guildLock.js';
 import { LogPrefix } from '../utils/logPrefix.js';
 import { ensureFullMember } from '../utils.js';
 import { MemberAbilities } from './MemberAbilities.js';
 import { deleteGiftedRole } from './legendGift.js';
 
 export const MAX_MEMBERS_IN_CLAN = 40;
+
+/**
+ * Discord's hard limit of channels inside a single category.
+ */
+export const MAX_CHANNELS_PER_CATEGORY = 50;
+
+/**
+ * Discord's *default* channel limit per guild, categories included. Servers can be granted a higher
+ * one, so this is only ever used to advise: the real limit is whatever Discord enforces at creation.
+ */
+export const DEFAULT_MAX_CHANNELS_PER_GUILD = 500;
+
+/**
+ * Guild channel count above which staff are advised when a new clan category is created.
+ */
+export const GUILD_CHANNEL_WARNING_THRESHOLD = 450;
+
+/**
+ * Grace period between a clan becoming orphaned and its automatic deletion.
+ */
+export const ORPHAN_GRACE_PERIOD = '3 days';
 
 export enum ClanCreationAbilityStatus {
 	Able = 0,
@@ -29,7 +52,24 @@ export enum ClanCreationStatus {
 	CustomRoleNotFound = 5,
 	ExistingClanFound = 6,
 	CouldNotCreateClanChannel = 7,
+	CouldNotCreateClanCategory = 8,
 }
+
+export enum ClanCategoryResolutionStatus {
+	Resolved = 0,
+	NotConfigured = 1,
+	CouldNotCreate = 2,
+}
+
+export type ClanCategoryResolution =
+	| {
+			category: CategoryChannel;
+			status: ClanCategoryResolutionStatus.Resolved;
+	  }
+	| {
+			category: undefined;
+			status: ClanCategoryResolutionStatus.CouldNotCreate | ClanCategoryResolutionStatus.NotConfigured;
+	  };
 
 export enum ClanDeletionStatus {
 	Deleted = 0,
@@ -118,7 +158,7 @@ export class ClanManager {
 				break;
 
 			case ClanCreationStatus.CategoryNotConfigured:
-				message = 'The clan category has not been set. Please contact modmail to solve this issue.';
+				message = 'No clan category has been set. Please contact modmail to solve this issue.';
 				break;
 
 			case ClanCreationStatus.MemberNotFound:
@@ -143,6 +183,11 @@ export class ClanManager {
 
 			case ClanCreationStatus.CouldNotCreateClanChannel:
 				message = 'The clan channel could not be created. Please contact modmail to solve this issue.';
+				break;
+
+			case ClanCreationStatus.CouldNotCreateClanCategory:
+				message =
+					'Every clan category is full and a new one could not be created. Please contact modmail to solve this issue.';
 				break;
 		}
 
@@ -233,19 +278,184 @@ export class ClanManager {
 		return new ClanManager(clan.customRoleId, channel.guildId);
 	}
 
-	public async getClanCategory(): Promise<CategoryChannel | undefined> {
-		const guildConfig = await container.prisma.premiumGuildRoleConfig.findFirst({
-			where: { guildId: this.guildId },
+	/**
+	 * The configured clan categories that still exist, in fill order: visually topmost first.
+	 *
+	 * discord.js' computed `position` already applies Discord's own ordering rules, which break
+	 * ties on equal raw positions by snowflake ascending, so no extra tie-breaking is needed here.
+	 */
+	public static async getClanCategoriesForGuild(guildId: string): Promise<CategoryChannel[]> {
+		const { categories } = await ClanManager.getConfiguredClanCategories(guildId);
+
+		return categories;
+	}
+
+	public async getClanCategories(): Promise<CategoryChannel[]> {
+		return ClanManager.getClanCategoriesForGuild(this.guildId);
+	}
+
+	/**
+	 * Picks the first clan category with room left, creating a new one when they are all full.
+	 * Serialised per guild so two simultaneous clan creations cannot each create a category.
+	 */
+	public async resolveClanCategory(): Promise<ClanCategoryResolution> {
+		return withGuildLock(this.guildId, async (): Promise<ClanCategoryResolution> => {
+			const { categories, configuredIds, guildAvailable } = await ClanManager.getConfiguredClanCategories(
+				this.guildId,
+			);
+
+			// Only prune against a guild we could actually read, or an uncached guild would wipe the config.
+			if (guildAvailable && categories.length !== configuredIds.length) {
+				await this.pruneClanCategories(categories);
+			}
+
+			if (!categories.length) {
+				this.addBreadcrumb('resolveClanCategory failed: no category configured', undefined, 'warning');
+				return { category: undefined, status: ClanCategoryResolutionStatus.NotConfigured };
+			}
+
+			const availableCategory = categories.find(
+				(category) => category.children.cache.size < MAX_CHANNELS_PER_CATEGORY,
+			);
+
+			if (availableCategory) {
+				return { category: availableCategory, status: ClanCategoryResolutionStatus.Resolved };
+			}
+
+			this.addBreadcrumb('All clan categories are full, creating a new one', {
+				categoryCount: categories.length,
+			});
+
+			const createdCategory = await this.createOverflowClanCategory(categories);
+
+			if (!createdCategory) {
+				return { category: undefined, status: ClanCategoryResolutionStatus.CouldNotCreate };
+			}
+
+			return { category: createdCategory, status: ClanCategoryResolutionStatus.Resolved };
+		});
+	}
+
+	private static async getConfiguredClanCategories(guildId: string): Promise<{
+		categories: CategoryChannel[];
+		configuredIds: string[];
+		guildAvailable: boolean;
+	}> {
+		const guildConfig = await container.prisma.premiumGuildRoleConfig.findUnique({
+			where: { guildId },
+			select: { clanCategoryIds: true },
 		});
 
-		if (!guildConfig?.clanCategoryId) {
-			return;
+		const configuredIds = guildConfig?.clanCategoryIds ?? [];
+		const categories: CategoryChannel[] = [];
+		const guild = container.client.guilds.cache.get(guildId);
+
+		if (!guild) {
+			return { categories, configuredIds, guildAvailable: false };
 		}
 
-		return (
-			((await this.guild.channels.fetch(guildConfig.clanCategoryId).catch(() => {})) as CategoryChannel) ??
-			undefined
+		for (const categoryId of configuredIds) {
+			const channel = await guild.channels.fetch(categoryId).catch(() => null);
+
+			if (channel?.type === ChannelType.GuildCategory) {
+				categories.push(channel);
+			}
+		}
+
+		categories.sort((first, second) => first.position - second.position);
+
+		return { categories, configuredIds, guildAvailable: true };
+	}
+
+	/**
+	 * Drops configured category IDs that no longer resolve to a category, so the list cannot rot.
+	 */
+	private async pruneClanCategories(categories: CategoryChannel[]): Promise<void> {
+		try {
+			await container.prisma.premiumGuildRoleConfig.update({
+				where: { guildId: this.guildId },
+				data: { clanCategoryIds: categories.map((category) => category.id) },
+			});
+
+			this.addBreadcrumb('Pruned clan categories that no longer exist', {
+				remaining: categories.length,
+			});
+		} catch (error) {
+			this.logError('Failed to prune missing clan categories:', error);
+			this.captureError(error as Error, 'pruneClanCategories: database update failed');
+		}
+	}
+
+	/**
+	 * Clones the bottom-most clan category so new categories accumulate downwards, both visually
+	 * and in fill order. Cloning is what carries the permission overwrites over, which matters
+	 * because clan channels sync to their parent on creation.
+	 */
+	private async createOverflowClanCategory(categories: CategoryChannel[]): Promise<CategoryChannel | undefined> {
+		const sourceCategory = categories.at(-1)!;
+
+		const createdCategory = await sourceCategory
+			.clone({ reason: 'All clan categories are full' })
+			.catch(async (error: unknown) => {
+				// Never pre-empt the channel limit: this server may have been granted a raised one,
+				// so the only authority on whether there is room left is Discord refusing the create.
+				const hitChannelLimit =
+					error instanceof DiscordAPIError &&
+					error.code === RESTJSONErrorCodes.MaximumNumberOfGuildChannelsReached;
+
+				this.logError('Failed to create an overflow clan category:', error);
+				this.captureError(error as Error, 'createOverflowClanCategory: category creation failed');
+				await sendClanAlert(
+					this.guildId,
+					hitChannelLimit ?
+						`Every clan category is full and the server has hit Discord's channel limit (currently ${this.guild.channels.cache.size} channels). **No new clan can be created until channels are freed up.**`
+					:	'Every clan category is full and creating a new one failed. Clan creation is blocked until this is resolved.',
+					'error',
+				);
+
+				return undefined;
+			});
+
+		if (!createdCategory) {
+			return undefined;
+		}
+
+		try {
+			await container.prisma.premiumGuildRoleConfig.update({
+				where: { guildId: this.guildId },
+				data: { clanCategoryIds: { push: createdCategory.id } },
+			});
+		} catch (error) {
+			// The category exists on Discord but is unknown to the bot, so remove it rather than leak it.
+			this.logError('Failed to save the new clan category, rolling it back:', error);
+			this.captureError(error as Error, 'createOverflowClanCategory: database update failed');
+			await createdCategory.delete('Could not register the new clan category').catch(() => null);
+			await sendClanAlert(
+				this.guildId,
+				'Every clan category is full and the new one could not be saved to the database. Clan creation is blocked until this is resolved.',
+				'error',
+			);
+
+			return undefined;
+		}
+
+		this.log(`Created overflow clan category ${createdCategory.id}`);
+		this.addBreadcrumb('Created overflow clan category', { categoryId: createdCategory.id });
+
+		const newChannelCount = this.guild.channels.cache.size;
+		const isRunningLow = newChannelCount >= GUILD_CHANNEL_WARNING_THRESHOLD;
+		const warning =
+			isRunningLow ?
+				`\n\n**Heads up:** that is past ${GUILD_CHANNEL_WARNING_THRESHOLD} channels. Discord's default cap is ${DEFAULT_MAX_CHANNELS_PER_GUILD}, which this server may or may not have raised, so this is worth keeping an eye on.`
+			:	'';
+
+		await sendClanAlert(
+			this.guildId,
+			`Every clan category was full, so <#${createdCategory.id}> was created for new clans.\nThe server now has ${newChannelCount} channels.${warning}`,
+			isRunningLow ? 'warning' : 'info',
 		);
+
+		return createdCategory;
 	}
 
 	public getClanOwnerId(): string | undefined {
@@ -475,9 +685,11 @@ export class ClanManager {
 	public async createClan(description?: string | null): Promise<ClanCreationStatus> {
 		this.addBreadcrumb('Starting createClan');
 
-		const clanCategory = await this.getClanCategory();
+		// Only checks that categories are configured. Picking one happens after every other check,
+		// so a run that fails later cannot leave a freshly created category behind.
+		const configuredCategories = await this.getClanCategories();
 
-		if (!clanCategory) {
+		if (!configuredCategories.length) {
 			this.addBreadcrumb('createClan failed: category not configured', undefined, 'warning');
 			return ClanCreationStatus.CategoryNotConfigured;
 		}
@@ -513,10 +725,18 @@ export class ClanManager {
 			return ClanCreationStatus.ExistingClanFound;
 		}
 
+		const categoryResolution = await this.resolveClanCategory();
+
+		if (!categoryResolution.category) {
+			return categoryResolution.status === ClanCategoryResolutionStatus.NotConfigured ?
+					ClanCreationStatus.CategoryNotConfigured
+				:	ClanCreationStatus.CouldNotCreateClanCategory;
+		}
+
 		this.log(`Creating clan channel ${customRole.name} for ${this.userId}...`);
 		this.addBreadcrumb('Creating clan channel', { roleName: customRole.name });
 
-		const clanChannel = await this.createClanChannel();
+		const clanChannel = await this.createClanChannel(categoryResolution.category);
 
 		if (!clanChannel) {
 			this.addBreadcrumb('createClan failed: could not create channel', undefined, 'error');
@@ -709,7 +929,7 @@ export class ClanManager {
 			return;
 		}
 
-		const deletionDate = new Duration('1 week').fromNow;
+		const deletionDate = new Duration(ORPHAN_GRACE_PERIOD).fromNow;
 
 		try {
 			this.addBreadcrumb('Scheduling orphan deletion task', { deletionDate: deletionDate.toISOString() });
@@ -1285,7 +1505,7 @@ export class ClanManager {
 		}
 	}
 
-	private async createClanChannel(): Promise<TextChannel | undefined> {
+	private async createClanChannel(clanCategory: CategoryChannel): Promise<TextChannel | undefined> {
 		this.addBreadcrumb('Starting createClanChannel');
 
 		const customRole = await this.getCustomRole();
@@ -1296,13 +1516,6 @@ export class ClanManager {
 				{ hasRole: Boolean(customRole), hasOwner: Boolean(this.getClanOwnerId()) },
 				'warning',
 			);
-			return;
-		}
-
-		const clanCategory = await this.getClanCategory();
-
-		if (!clanCategory) {
-			this.addBreadcrumb('createClanChannel failed: no clan category configured', undefined, 'error');
 			return;
 		}
 

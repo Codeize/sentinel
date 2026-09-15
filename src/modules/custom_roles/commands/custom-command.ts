@@ -143,7 +143,7 @@ export class CustomCommandCommand extends Subcommand {
 					{ name: 'Changed by', value: `<@${interaction.user.id}>`, inline: true },
 				)
 				.setTimestamp()
-				.setColor(existingCommand ? "Orange" : "Green");
+				.setColor(existingCommand ? 'Orange' : 'Green');
 
 			if (mediaUrl) {
 				logEmbed.addFields({ name: 'Media URL', value: mediaUrl });

@@ -11,6 +11,7 @@ import {
 	type TextChannel,
 	MessageFlags,
 } from 'discord.js';
+import { ClanManager, MAX_CHANNELS_PER_CATEGORY } from '../../../lib/abilities/ClanManager.js';
 import type { RoleAbility } from '../../../lib/abilities/RoleAbilities.js';
 import { RoleAbilitiesCalculator, RoleAbilityMap } from '../../../lib/abilities/RoleAbilities.js';
 import { createErrorEmbed, createInfoEmbed } from '../../../lib/utils/createEmbed.js';
@@ -33,9 +34,27 @@ export class ConfigPremiumCommand extends Subcommand {
 			chatInputRun: 'setLegendRoleSubcommand',
 		},
 		{
+			type: 'group',
+			name: 'clan-categories',
+			entries: [
+				{
+					name: 'list',
+					chatInputRun: 'listClanCategoriesSubcommand',
+				},
+				{
+					name: 'add',
+					chatInputRun: 'addClanCategorySubcommand',
+				},
+				{
+					name: 'remove',
+					chatInputRun: 'removeClanCategorySubcommand',
+				},
+			],
+		},
+		{
 			type: 'method',
-			name: 'set-clan-category',
-			chatInputRun: 'setClanCategorySubcommand',
+			name: 'set-clan-alert-channel',
+			chatInputRun: 'setClanAlertChannelSubcommand',
 		},
 		{
 			type: 'method',
@@ -175,8 +194,12 @@ export class ConfigPremiumCommand extends Subcommand {
 		const giftableRole =
 			premiumConfig?.legendRoleId ? interaction.guild.roles.resolve(premiumConfig.legendRoleId) : null;
 
-		const clanCategory =
-			premiumConfig?.clanCategoryId ? interaction.guild.channels.resolve(premiumConfig.clanCategoryId) : null;
+		const clanCategories = await ClanManager.getClanCategoriesForGuild(interaction.guildId);
+
+		const clanAlertChannel =
+			premiumConfig?.clanAlertChannelId ?
+				interaction.guild.channels.resolve(premiumConfig.clanAlertChannelId)
+			:	null;
 
 		const clanInviteChannel =
 			premiumConfig?.clanInviteChannelId ?
@@ -200,7 +223,22 @@ export class ConfigPremiumCommand extends Subcommand {
 
 		const representations = [
 			{ name: 'Giftable Role', value: giftableRole ? `<@&${giftableRole.id}> (${giftableRole.id})` : null },
-			{ name: 'Clan Category', value: clanCategory ? `<#${clanCategory.id}> (${clanCategory.id})` : null },
+			{
+				name: 'Clan Categories',
+				value:
+					clanCategories.length ?
+						clanCategories
+							.map(
+								(category) =>
+									`<#${category.id}> (\`${category.children.cache.size}/${MAX_CHANNELS_PER_CATEGORY}\`)`,
+							)
+							.join(', ')
+					:	null,
+			},
+			{
+				name: 'Clan Alert Channel',
+				value: clanAlertChannel ? `<#${clanAlertChannel.id}> (${clanAlertChannel.id})` : null,
+			},
 			{
 				name: 'Clan Invite Channel',
 				value: clanInviteChannel ? `<#${clanInviteChannel.id}> (${clanInviteChannel.id})` : null,
@@ -297,10 +335,46 @@ export class ConfigPremiumCommand extends Subcommand {
 		});
 	}
 
-	public async setClanCategorySubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+	public async listClanCategoriesSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const categories = await ClanManager.getClanCategoriesForGuild(interaction.guildId);
+
+		if (!categories.length) {
+			await interaction.reply({
+				embeds: [createInfoEmbed('There are no clan categories configured in this server!')],
+				flags: MessageFlags.Ephemeral,
+			});
+
+			return;
+		}
+
+		const lines = categories.map((category, index) => {
+			const used = category.children.cache.size;
+			const marker = used < MAX_CHANNELS_PER_CATEGORY ? '' : ' — **full**';
+
+			return `\`${index + 1}.\` <#${category.id}> — \`${used}/${MAX_CHANNELS_PER_CATEGORY}\`${marker}`;
+		});
+
+		const channelCount = interaction.guild.channels.cache.size;
+
+		await interaction.reply({
+			embeds: [
+				createInfoEmbed(
+					[
+						'**Clan Categories** (filled in this order, topmost first):',
+						lines.join('\n'),
+						'',
+						`Server channels: \`${channelCount}\``,
+					].join('\n'),
+				),
+			],
+			flags: MessageFlags.Ephemeral,
+		});
+	}
+
+	public async addClanCategorySubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
 		const category = interaction.options.getChannel('category', true);
 
-		if (!category || category.type !== ChannelType.GuildCategory) {
+		if (category.type !== ChannelType.GuildCategory) {
 			await interaction.reply({
 				embeds: [createErrorEmbed('No category or invalid category provided.')],
 				flags: MessageFlags.Ephemeral,
@@ -313,39 +387,101 @@ export class ConfigPremiumCommand extends Subcommand {
 			where: { guildId: interaction.guildId },
 		});
 
-		if (existingPremiumConfig) {
-			const previousCategory =
-				existingPremiumConfig.clanCategoryId ?
-					interaction.guild.channels.resolve(existingPremiumConfig.clanCategoryId)
-				:	null;
-
-			const previousRepresentation =
-				previousCategory ? `<#${previousCategory.id}> (${previousCategory.id})` : 'none';
-			const newRepresentation = category ? `<#${category.id}> (${category.id})` : 'none';
-
-			await this.container.prisma.premiumGuildRoleConfig.update({
-				where: { guildId: interaction.guildId },
-				data: { clanCategoryId: category.id ?? null },
-			});
-
+		if (existingPremiumConfig?.clanCategoryIds.includes(category.id)) {
 			await interaction.reply({
-				embeds: [
-					createInfoEmbed(`Set the clan category from ${previousRepresentation} to ${newRepresentation}`),
-				],
+				embeds: [createInfoEmbed('This category is already a clan category in this server!')],
 				flags: MessageFlags.Ephemeral,
 			});
 
 			return;
 		}
 
-		await this.container.prisma.premiumGuildRoleConfig.create({
-			data: { guildId: interaction.guildId, clanCategoryId: category.id },
+		await this.container.prisma.premiumGuildRoleConfig.upsert({
+			where: { guildId: interaction.guildId },
+			create: { guildId: interaction.guildId, clanCategoryIds: [category.id] },
+			update: { clanCategoryIds: { push: category.id } },
 		});
 
-		const newRepresentation = category ? `<#${category.id}> (${category.id})` : 'none';
+		await interaction.reply({
+			embeds: [
+				createInfoEmbed(
+					`Added <#${category.id}> (${category.id}) to the list of clan categories in this server!`,
+				),
+			],
+			flags: MessageFlags.Ephemeral,
+		});
+	}
+
+	public async removeClanCategorySubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const category = interaction.options.getChannel('category', true);
+
+		const existingPremiumConfig = await this.container.prisma.premiumGuildRoleConfig.findFirst({
+			where: { guildId: interaction.guildId },
+		});
+
+		if (!existingPremiumConfig?.clanCategoryIds.includes(category.id)) {
+			await interaction.reply({
+				embeds: [createInfoEmbed('This category is not a clan category in this server!')],
+				flags: MessageFlags.Ephemeral,
+			});
+
+			return;
+		}
+
+		await this.container.prisma.premiumGuildRoleConfig.update({
+			where: { guildId: interaction.guildId },
+			data: {
+				clanCategoryIds: {
+					set: existingPremiumConfig.clanCategoryIds.filter((id) => id !== category.id),
+				},
+			},
+		});
 
 		await interaction.reply({
-			embeds: [createInfoEmbed(`Set the clan category to ${newRepresentation}`)],
+			embeds: [
+				createInfoEmbed(
+					`Removed <#${category.id}> (${category.id}) from the list of clan categories in this server. The category itself was left untouched.`,
+				),
+			],
+			flags: MessageFlags.Ephemeral,
+		});
+	}
+
+	public async setClanAlertChannelSubcommand(interaction: Subcommand.ChatInputCommandInteraction<'cached'>) {
+		const channel = interaction.options.getChannel('channel', true);
+
+		if (channel.type !== ChannelType.GuildText) {
+			await interaction.reply({
+				embeds: [createErrorEmbed('No channel or invalid channel provided.')],
+				flags: MessageFlags.Ephemeral,
+			});
+
+			return;
+		}
+
+		const existingPremiumConfig = await this.container.prisma.premiumGuildRoleConfig.findFirst({
+			where: { guildId: interaction.guildId },
+		});
+
+		const previousChannel =
+			existingPremiumConfig?.clanAlertChannelId ?
+				interaction.guild.channels.resolve(existingPremiumConfig.clanAlertChannelId)
+			:	null;
+
+		const previousRepresentation = previousChannel ? `<#${previousChannel.id}> (${previousChannel.id})` : 'none';
+
+		await this.container.prisma.premiumGuildRoleConfig.upsert({
+			where: { guildId: interaction.guildId },
+			create: { guildId: interaction.guildId, clanAlertChannelId: channel.id },
+			update: { clanAlertChannelId: channel.id },
+		});
+
+		await interaction.reply({
+			embeds: [
+				createInfoEmbed(
+					`Set the clan alert channel from ${previousRepresentation} to <#${channel.id}> (${channel.id})`,
+				),
+			],
 			flags: MessageFlags.Ephemeral,
 		});
 	}
@@ -884,15 +1020,49 @@ export class ConfigPremiumCommand extends Subcommand {
 								.setDescription('The legend role (leave empty to reset/disable the feature)'),
 						),
 				)
+				.addSubcommandGroup((group) =>
+					group
+						.setName('clan-categories')
+						.setDescription('Manage the categories clan channels are created in')
+						.addSubcommand((subcommand) =>
+							subcommand
+								.setName('list')
+								.setDescription('Lists the clan categories in this server, in fill order'),
+						)
+						.addSubcommand((subcommand) =>
+							subcommand
+								.setName('add')
+								.setDescription('Adds a category to the list of clan categories')
+								.addChannelOption((channel) =>
+									channel
+										.setName('category')
+										.setDescription('The clan category to add')
+										.addChannelTypes(ChannelType.GuildCategory)
+										.setRequired(true),
+								),
+						)
+						.addSubcommand((subcommand) =>
+							subcommand
+								.setName('remove')
+								.setDescription('Removes a category from the list of clan categories')
+								.addChannelOption((channel) =>
+									channel
+										.setName('category')
+										.setDescription('The clan category to remove')
+										.addChannelTypes(ChannelType.GuildCategory)
+										.setRequired(true),
+								),
+						),
+				)
 				.addSubcommand((subcommand) =>
 					subcommand
-						.setName('set-clan-category')
-						.setDescription('Sets the clan category for this server')
+						.setName('set-clan-alert-channel')
+						.setDescription('Sets the channel where clan category and channel limit alerts are sent')
 						.addChannelOption((channel) =>
 							channel
-								.setName('category')
-								.setDescription('The clan category')
-								.addChannelTypes(ChannelType.GuildCategory)
+								.setName('channel')
+								.setDescription('The channel in which to send clan alerts')
+								.addChannelTypes(ChannelType.GuildText)
 								.setRequired(true),
 						),
 				)
