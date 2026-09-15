@@ -100,6 +100,17 @@ AUTHORS text
 *.fla binary
 *.swf binary
 *.gz binary
+# `*.gz` does not match `.tgz` -- different extension. Without this, the blanket
+# `* text eol=lf` above treats an npm tarball as text, strips bytes, and git
+# stores a corrupted gzip stream. It installs fine locally and fails on deploy
+# with `zlib: incorrect data check`.
+*.tgz binary
+*.tar binary
+*.tar.gz binary
+*.bz2 binary
+*.xz binary
+*.br binary
+*.wasm binary
 *.zip binary
 *.7z binary
 *.ttf binary
