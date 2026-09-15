@@ -226,6 +226,10 @@ npm start
 -   `npm run watch`: Watch mode for development
 -   `npm run lint`: Check code style with ESLint
 -   `npm run format`: Auto-format code with Prettier and ESLint
+-   `npm run db:backup`: Dump the database to `backups/` (gzipped, timestamped, keeps the last 20)
+-   `npm run db:restore`: List dumps, or restore one (needs an explicit `--yes`)
+-   `npm run db:migrate:deploy`: Apply pending migrations, then regenerate the Prisma client
+-   `npm run db:migrate:deploy:safe`: Back up first, then `db:migrate:deploy`. Use this when deploying
 
 ### Testing & Deployment
 
@@ -237,9 +241,10 @@ npm start
 
 **Deployment**:
 
-1. Build the project: `npm run cleanbuild`
-2. Run migrations: `npx prisma migrate deploy`
-3. Restart the bot (PM2 or manual restart)
+1. Back up the database, migrate, and regenerate the Prisma client: `npm run db:migrate:deploy:safe`
+2. Restart the bot (PM2 or manual restart). `npm start` clean builds, so there is no separate build step
+
+The Prisma client must be regenerated **before** that restart builds. `prisma migrate deploy` applies the SQL but does not regenerate the client, so the build compiles against a client that still describes the old schema and `tsc` fails on every column the migration added. `npm run db:migrate:deploy` runs `prisma generate` for this reason; if you ever run `npx prisma migrate deploy` directly, run `npx prisma generate` after it.
 
 ## Common Development Tasks
 
