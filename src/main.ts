@@ -1,12 +1,13 @@
 import process from 'node:process';
 import { inspect } from 'node:util';
 import '@sapphire/plugin-logger/register';
-import { ApplicationCommandRegistries, LogLevel, RegisterBehavior } from '@sapphire/framework';
+import { ApplicationCommandRegistries, container, LogLevel, RegisterBehavior } from '@sapphire/framework';
 import { Time } from '@sapphire/time-utilities';
 import * as Sentry from '@sentry/node';
 import { createColors } from 'colorette';
 import { GuildMember, type User } from 'discord.js';
 import { ActivityType, IntentsBitField, Options, Partials } from 'discord.js';
+import { Disbots, instrumentSapphire } from '@disbots/sdk';
 import { UtilsBot } from './lib/UtilsBot.js';
 
 if (process.env.SENTRY_DSN) {
@@ -104,6 +105,32 @@ const client = new UtilsBot({
 		},
 	},
 });
+
+// Disbots: a watcher that knows what Discord errors actually mean. Runs alongside
+// Sentry rather than replacing it, so the two can be compared on the same errors.
+// Disabled entirely when DISBOTS_KEY is unset, so nothing changes without opting in.
+const disbots = new Disbots({
+	url: process.env.DISBOTS_URL ?? 'http://localhost:4317',
+	key: process.env.DISBOTS_KEY ?? '',
+	bot: 'sentinel',
+	release: process.env.GIT_SHA ?? null,
+	client,
+	enabled: Boolean(process.env.DISBOTS_KEY),
+	// The watcher must never be able to take the bot down with it.
+	onError: (error, context) => client.logger.warn(`[disbots:${context}] ${error.message}`),
+});
+
+container.disbots = disbots;
+await disbots.start();
+instrumentSapphire(client, disbots, {
+	onReady: ({ pieces, methods }) => client.logger.info(`Disbots instrumented ${pieces} pieces (${methods} methods)`),
+});
+
+declare module '@sapphire/pieces' {
+	interface Container {
+		disbots: Disbots;
+	}
+}
 
 try {
 	await client.login();

@@ -7,7 +7,25 @@ import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 export default class extends Listener {
 	public async run(error: Error | UserError, context: ChatInputCommandErrorPayload) {
 		const { interaction } = context;
-		const embeds = [createInfoEmbed(error.message)];
+
+		// Disbots returns the ID synchronously, so it can go in front of the user
+		// immediately -- without one, a report is just "it broke" and unfindable.
+		// Argument errors are the user's own mistake and need no reference.
+		const isUserFacing = (error as UserError).isArgumentError;
+		const eventId =
+			isUserFacing ? null : (
+				this.container.disbots.captureError(error, {
+					commandName: context.command.name,
+					userId: interaction.user.id,
+					guildId: interaction.guildId,
+					channelId: interaction.channelId,
+				})
+			);
+
+		const description =
+			eventId ? [error.message, '', `-# Quote \`${eventId}\` if you report this.`].join('\n') : error.message;
+
+		const embeds = [createInfoEmbed(description)];
 
 		try {
 			if (interaction.deferred) {
@@ -24,7 +42,7 @@ export default class extends Listener {
 			this.container.logger.warn('Failed to deliver command error message to the user', responseError);
 		}
 
-		if (!(error as UserError).isArgumentError) {
+		if (!isUserFacing) {
 			this.container.logger.error(error.stack ?? (error.message || error));
 			Sentry.captureException(error, {
 				extra: {
