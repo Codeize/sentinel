@@ -42,5 +42,8 @@ wiki/
 data/
 .env
 
+# Database dumps (pre-migration backups)
+backups/
+
 # Local Claude docs (not committed)
 .claude/*.local*

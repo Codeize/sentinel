@@ -10,7 +10,11 @@
 		"build": "tsc",
 		"cleanbuild": "rimraf dist && tsc",
 		"watch": "npx tsc-watch --onSuccess \"node .\"",
-		"dev": "npm run start"
+		"dev": "npm run start",
+		"db:backup": "node scripts/backup.mjs",
+		"db:restore": "node scripts/restore.mjs",
+		"db:migrate:deploy": "prisma migrate deploy",
+		"db:migrate:deploy:safe": "npm run db:backup && npm run db:migrate:deploy"
 	},
 	"private": true,
 	"author": "Vlad Frangu <kingdgrizzle@gmail.com>",

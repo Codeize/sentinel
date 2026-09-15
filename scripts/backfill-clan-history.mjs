@@ -23,6 +23,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { PrismaClient } from '@prisma/client';
+import { buildDatabaseUrl } from './database-url.mjs';
 
 const args = process.argv.slice(2);
 const APPLY = args.includes('--apply');
@@ -33,30 +34,6 @@ const envPath = readFlag('--env') ?? '.env';
 function readFlag(name) {
 	const index = args.indexOf(name);
 	return index !== -1 && args[index + 1] ? args[index + 1] : null;
-}
-
-function readEnvValue(content, key) {
-	const match = content.match(new RegExp(`^\\s*${key}\\s*=(.*)$`, 'm'));
-	if (!match) return null;
-	const value = match[1].trim();
-	// Strip surrounding quotes and any trailing inline comment outside the quotes.
-	const quoted = value.match(/^"([^"]*)"/) ?? value.match(/^'([^']*)'/);
-	if (quoted) return quoted[1];
-	return value.replace(/\s+#.*$/, '').trim();
-}
-
-function buildDatabaseUrl() {
-	if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('${')) {
-		return process.env.DATABASE_URL;
-	}
-
-	const env = readFileSync(envPath, 'utf8');
-	const user = encodeURIComponent(readEnvValue(env, 'DATABASE_USERNAME') ?? 'postgres');
-	const pass = encodeURIComponent(readEnvValue(env, 'DATABASE_PASSWORD') ?? '');
-	const host = readEnvValue(env, 'DATABASE_HOST') ?? 'localhost';
-	const port = readEnvValue(env, 'DATABASE_PORT') ?? '5432';
-	const name = readEnvValue(env, 'DATABASE_NAME') ?? 'postgres';
-	return `postgresql://${user}:${pass}@${host}:${port}/${name}`;
 }
 
 function resolveLogFiles() {
@@ -173,7 +150,7 @@ function dedupeKey(event) {
 }
 
 async function main() {
-	const prisma = new PrismaClient({ datasources: { db: { url: buildDatabaseUrl() } } });
+	const prisma = new PrismaClient({ datasources: { db: { url: buildDatabaseUrl(envPath) } } });
 
 	try {
 		const files = resolveLogFiles();
