@@ -300,13 +300,12 @@ export class ClanManager {
 	 */
 	public async resolveClanCategory(): Promise<ClanCategoryResolution> {
 		return withGuildLock(this.guildId, async (): Promise<ClanCategoryResolution> => {
-			const { categories, configuredIds, guildAvailable } = await ClanManager.getConfiguredClanCategories(
+			const { categories, configuredIds, missingIds } = await ClanManager.getConfiguredClanCategories(
 				this.guildId,
 			);
 
-			// Only prune against a guild we could actually read, or an uncached guild would wipe the config.
-			if (guildAvailable && categories.length !== configuredIds.length) {
-				await this.pruneClanCategories(categories);
+			if (missingIds.length) {
+				await this.pruneClanCategories(configuredIds.filter((id) => !missingIds.includes(id)));
 			}
 
 			if (!categories.length) {
@@ -339,7 +338,7 @@ export class ClanManager {
 	private static async getConfiguredClanCategories(guildId: string): Promise<{
 		categories: CategoryChannel[];
 		configuredIds: string[];
-		guildAvailable: boolean;
+		missingIds: string[];
 	}> {
 		const guildConfig = await container.prisma.premiumGuildRoleConfig.findUnique({
 			where: { guildId },
@@ -348,14 +347,24 @@ export class ClanManager {
 
 		const configuredIds = guildConfig?.clanCategoryIds ?? [];
 		const categories: CategoryChannel[] = [];
+		const missingIds: string[] = [];
 		const guild = container.client.guilds.cache.get(guildId);
 
 		if (!guild) {
-			return { categories, configuredIds, guildAvailable: false };
+			return { categories, configuredIds, missingIds };
 		}
 
 		for (const categoryId of configuredIds) {
-			const channel = await guild.channels.fetch(categoryId).catch(() => null);
+			const channel = await guild.channels.fetch(categoryId).catch((error: unknown) => {
+				// Only Discord confirming the channel is gone makes an ID prunable. A transient API
+				// error, or an ID that now points at something other than a category, leaves the
+				// configuration alone rather than silently dropping a category that still exists.
+				if (error instanceof DiscordAPIError && error.code === RESTJSONErrorCodes.UnknownChannel) {
+					missingIds.push(categoryId);
+				}
+
+				return null;
+			});
 
 			if (channel?.type === ChannelType.GuildCategory) {
 				categories.push(channel);
@@ -364,21 +373,21 @@ export class ClanManager {
 
 		categories.sort((first, second) => first.position - second.position);
 
-		return { categories, configuredIds, guildAvailable: true };
+		return { categories, configuredIds, missingIds };
 	}
 
 	/**
-	 * Drops configured category IDs that no longer resolve to a category, so the list cannot rot.
+	 * Drops configured category IDs Discord has confirmed no longer exist, so the list cannot rot.
 	 */
-	private async pruneClanCategories(categories: CategoryChannel[]): Promise<void> {
+	private async pruneClanCategories(remainingIds: string[]): Promise<void> {
 		try {
 			await container.prisma.premiumGuildRoleConfig.update({
 				where: { guildId: this.guildId },
-				data: { clanCategoryIds: categories.map((category) => category.id) },
+				data: { clanCategoryIds: remainingIds },
 			});
 
 			this.addBreadcrumb('Pruned clan categories that no longer exist', {
-				remaining: categories.length,
+				remaining: remainingIds.length,
 			});
 		} catch (error) {
 			this.logError('Failed to prune missing clan categories:', error);
