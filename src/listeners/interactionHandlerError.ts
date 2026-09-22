@@ -1,5 +1,7 @@
 import { type InteractionHandlerError, Listener } from '@sapphire/framework';
 import * as Sentry from '@sentry/node';
+import { MessageFlags } from 'discord-api-types/v10';
+import type { InteractionReplyOptions } from 'discord.js';
 import { createInfoEmbed } from '../lib/utils/createEmbed.js';
 
 export class InteractionHandlerErrorListener extends Listener {
@@ -14,9 +16,9 @@ export class InteractionHandlerErrorListener extends Listener {
 		});
 
 		if (context.interaction.isRepliable()) {
-			const content = {
+			const content: InteractionReplyOptions = {
 				embeds: [createInfoEmbed('An error occurred while processing this interaction.')],
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			};
 			if (context.interaction.replied || context.interaction.deferred) {
 				await context.interaction.followUp(content).catch(() => null);

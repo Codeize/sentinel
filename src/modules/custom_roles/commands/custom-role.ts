@@ -4,7 +4,7 @@ import {
 	MessageFlags,
 	type MessageComponentInteraction,
 	type RoleColorsResolvable,
-	type RoleEditOptions,
+	type RoleEditOptions, type RoleCreateOptions,
 } from 'discord.js';
 import looksSame, { type Color } from 'looks-same';
 import magicBytes from 'magic-bytes.js';
@@ -20,23 +20,7 @@ import { ensureFullMember } from '../../../lib/utils.js';
 // tolerance will be something that we need to definitely tweak over time. Right now it's pretty loose, you need to be reaaal close to the staff colors to be rejected
 const kTolerance = 2.5;
 
-const forbiddenColors = (): ColorMatch[] => [
-	{
-		color: 0xffffff,
-		matched: false,
-		roleName: 'Purest day',
-	},
-	{
-		color: 0x000000,
-		matched: false,
-		roleName: 'Darkest night',
-	},
-	{
-		color: 0x313338,
-		matched: false,
-		roleName: 'Discord dark mode background',
-	},
-];
+const forbiddenColors = (): ColorMatch[] => [];
 
 export class CustomRoleCommand extends Subcommand {
 	public subcommandMappings: SubcommandMappingArray = [
@@ -273,7 +257,7 @@ export class CustomRoleCommand extends Subcommand {
 		}
 
 		try {
-			const newRole = oldRole ? await oldRole.edit(roleData) : await interaction.guild.roles.create(roleData);
+			const newRole = oldRole ? await oldRole.edit(roleData) : await interaction.guild.roles.create(roleData as RoleCreateOptions);
 
 			if (!oldRole) {
 				await interaction.member.roles.add(newRole.id, 'Setup premium custom role');
